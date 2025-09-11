@@ -11,6 +11,10 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
   const [isAddingRoommate, setIsAddingRoommate] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [editPrice, setEditPrice] = useState('');
+  const [whoOwes, setWhoOwes] = useState(1);
+  const [editingRoommate, setEditingRoommate] = useState(null);
+  const [editingName, setEditingName] = useState('');
+  const [showSetupModal, setShowSetupModal] = useState(true);
 
   // Parse OCR lines into items when lines change
   useEffect(() => {
@@ -81,6 +85,16 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
       setNewRoommateName('');
       setIsAddingRoommate(false);
     }
+  };
+
+  const updateRoommateName = (id, newName) => {
+    if (newName.trim()) {
+      setRoommates(roommates.map(roommate => 
+        roommate.id === id ? { ...roommate, name: newName.trim() } : roommate
+      ));
+    }
+    setEditingRoommate(null);
+    setEditingName('');
   };
 
   const removeRoommate = (id) => {
@@ -196,46 +210,109 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
                 className="w-4 h-4 rounded-full" 
                 style={{ backgroundColor: roommate.color }}
               ></div>
-              <span className="font-medium text-gray-800">{roommate.name}</span>
-              {roommates.length > 2 && (
-                <button
-                  onClick={() => removeRoommate(roommate.id)}
-                  className="text-red-500 hover:text-red-700 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+              {editingRoommate === roommate.id ? (
+                <div className="flex items-center space-x-1">
+                  <input
+                    type="text"
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    className="w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onKeyPress={(e) => e.key === 'Enter' && updateRoommateName(roommate.id, editingName)}
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => updateRoommateName(roommate.id, editingName)}
+                    className="text-green-600 hover:text-green-800"
+                  >
+                    <Check className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingRoommate(null);
+                      setEditingName('');
+                    }}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <span className="font-medium text-gray-800">{roommate.name}</span>
+                  {whoOwes === roommate.id && (
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                      Paid
+                    </span>
+                  )}
+                  <button
+                    onClick={() => {
+                      setEditingRoommate(roommate.id);
+                      setEditingName(roommate.name);
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <Edit2 className="w-3 h-3" />
+                  </button>
+                  {roommates.length > 2 && (
+                    <button
+                      onClick={() => removeRoommate(roommate.id)}
+                      className="text-red-500 hover:text-red-700 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </>
               )}
             </div>
           ))}
         </div>
 
-        {isAddingRoommate && (
-          <div className="flex items-center space-x-2">
-            <input
-              type="text"
-              value={newRoommateName}
-              onChange={(e) => setNewRoommateName(e.target.value)}
-              placeholder="Roommate name"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              onKeyPress={(e) => e.key === 'Enter' && addRoommate()}
-            />
-            <button
-              onClick={addRoommate}
-              className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+        <div className="flex justify-between items-center">
+          {isAddingRoommate ? (
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={newRoommateName}
+                onChange={(e) => setNewRoommateName(e.target.value)}
+                placeholder="Roommate name"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onKeyPress={(e) => e.key === 'Enter' && addRoommate()}
+              />
+              <button
+                onClick={addRoommate}
+                className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+              >
+                <Check className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => {
+                  setIsAddingRoommate(false);
+                  setNewRoommateName('');
+                }}
+                className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : null}
+          
+          <div className="flex items-center space-x-3">
+            <div className="text-sm text-gray-600">
+              Who paid?
+            </div>
+            <select
+              value={whoOwes}
+              onChange={(e) => setWhoOwes(parseInt(e.target.value))}
+              className="px-3 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <Check className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => {
-                setIsAddingRoommate(false);
-                setNewRoommateName('');
-              }}
-              className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+              {roommates.map((roommate) => (
+                <option key={roommate.id} value={roommate.id}>
+                  {roommate.name}
+                </option>
+              ))}
+            </select>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Items Table */}

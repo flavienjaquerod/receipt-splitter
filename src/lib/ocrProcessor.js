@@ -48,17 +48,19 @@ export class OCRProcessor {
       // Extract text and lines safely
       const text = result.data?.text || '';
       const lines = result.data?.lines || [];
+      const confidence = result.data?.confidence || 75;
       
       console.log('Extracted text length:', text.length);
       console.log('Lines found:', lines.length);
+      console.log("Confidence = ", confidence)
       
       // If no lines but we have text, create lines from text
       let processedLines = [];
       if (lines.length > 0) {
-        processedLines = this.processLines(lines);
+        processedLines = this.processLines(lines, confidence);
       } else if (text.trim()) {
         // Fallback: split text into lines if no line data available
-        processedLines = this.createLinesFromText(text);
+        processedLines = this.createLinesFromText(text, confidence);
       }
       
       return {
@@ -89,6 +91,7 @@ export class OCRProcessor {
       .map((line, index) => ({
         id: index,
         text: line.text.trim(),
+        // Use actual confidence from Tesseract (0-100 scale)
         confidence: Math.round(line.confidence || 0),
         bbox: line.bbox // Bounding box coordinates if needed later
       }))
@@ -96,7 +99,8 @@ export class OCRProcessor {
   }
 
   // Fallback method to create lines from raw text
-  createLinesFromText(text) {
+  createLinesFromText(text, overallConfidence = 75) {
+    console.log('Using fallback createLinesFromText with confidence:', overallConfidence);
     return text
       .split('\n')
       .map(line => line.trim())
@@ -104,7 +108,7 @@ export class OCRProcessor {
       .map((line, index) => ({
         id: index,
         text: line,
-        confidence: 75, // Default confidence for text-based lines
+        confidence: overallConfidence, // Use overall confidence when splitting from text
         bbox: null
       }));
   }
