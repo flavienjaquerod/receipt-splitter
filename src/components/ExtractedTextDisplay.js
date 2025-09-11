@@ -11,7 +11,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
   const [isAddingRoommate, setIsAddingRoommate] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [editPrice, setEditPrice] = useState('');
-  const [whoOwes, setWhoOwes] = useState(1);
+  const [whoPaid, setwhoPaid] = useState(1);
   const [editingRoommate, setEditingRoommate] = useState(null);
   const [editingName, setEditingName] = useState('');
   const [showSetupModal, setShowSetupModal] = useState(true);
@@ -60,7 +60,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
               name: itemName,
               originalPrice: totalPrice,
               currentPrice: totalPrice,
-              assignedTo: [], // Array of roommate IDs
+              assignedTo: roommates.map(r => r.id),
               confidence: line.confidence
             });
           }
@@ -72,6 +72,15 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
 
     parseItems();
   }, [lines]);
+
+  useEffect(() => {
+    setItems(items.map(item => {
+      return {
+        ...item,
+        assignedTo: roommates.map(r => r.id)
+      };
+    }));
+  }, [roommates]);
 
   const addRoommate = () => {
     if (newRoommateName.trim()) {
@@ -150,7 +159,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
     // Assuming the first roommate paid for everything
     const totalAmount = items.reduce((sum, item) => sum + item.currentPrice, 0);
     if (roommates.length > 0) {
-      balances[roommates[0].id].paid = totalAmount;
+      balances[whoPaid].paid = totalAmount;
     }
 
     return balances;
@@ -239,7 +248,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
               ) : (
                 <>
                   <span className="font-medium text-gray-800">{roommate.name}</span>
-                  {whoOwes === roommate.id && (
+                  {whoPaid === roommate.id && (
                     <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
                       Paid
                     </span>
@@ -301,8 +310,8 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
               Who paid?
             </div>
             <select
-              value={whoOwes}
-              onChange={(e) => setWhoOwes(parseInt(e.target.value))}
+              value={whoPaid}
+              onChange={(e) => setwhoPaid(parseInt(e.target.value))}
               className="px-3 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {roommates.map((roommate) => (
