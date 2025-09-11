@@ -144,14 +144,17 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
   const calculateBalances = () => {
     const balances = {};
     roommates.forEach(roommate => {
-      balances[roommate.id] = { paid: 0, owes: 0 };
+      balances[roommate.id] = { paid: 0, owes: 0, owesTo: null };
     });
 
     items.forEach(item => {
       if (item.assignedTo.length > 0) {
         const pricePerPerson = item.currentPrice / item.assignedTo.length;
         item.assignedTo.forEach(roommateId => {
-          balances[roommateId].owes += pricePerPerson;
+          if(roommateId !== whoPaid) {
+            balances[roommateId].owes += pricePerPerson;
+            balances[roommateId].owesTo += whoPaid;
+          }
         });
       }
     });
@@ -472,7 +475,20 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
                 </div>
                 <div className="space-y-1 text-sm">
                   <div>Paid: <span className="font-medium">CHF {balance.paid.toFixed(2)}</span></div>
-                  <div>Owes: <span className="font-medium">CHF {balance.owes.toFixed(2)}</span></div>
+                  <div>
+                      {balance.owes > 0 ? (
+                        <>
+                          Owes <span className="font-medium">CHF {balance.owes.toFixed(2)}</span>
+                          {balance.owesTo && (
+                            <span className="ml-1">
+                              to <strong>{roommates.find(r => r.id === whoPaid)?.name || "Unknown"}</strong>
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <>Owes: CHF 0.00</>
+                      )}
+                  </div>
                   <div className={`font-semibold ${netBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {netBalance >= 0 ? 'To receive' : 'To pay'}: CHF {Math.abs(netBalance).toFixed(2)}
                   </div>
