@@ -481,7 +481,16 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
                           Owes <span className="font-medium">CHF {balance.owes.toFixed(2)}</span>
                           {balance.owesTo && (
                             <span className="ml-1">
-                              to <strong>{roommates.find(r => r.id === whoPaid)?.name || "Unknown"}</strong>
+                              to{" "}
+                              <strong>
+                                <span
+                                  style={{
+                                    color: roommates.find(r => r.id === whoPaid)?.color || "inherit"
+                                  }}
+                                >
+                                  {roommates.find(r => r.id === whoPaid)?.name || "Unknown"}
+                                </span>
+                              </strong>
                             </span>
                           )}
                         </>
