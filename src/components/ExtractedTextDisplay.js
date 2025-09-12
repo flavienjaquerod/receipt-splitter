@@ -14,65 +14,59 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
   const [whoPaid, setwhoPaid] = useState(1);
   const [editingRoommate, setEditingRoommate] = useState(null);
   const [editingName, setEditingName] = useState('');
+  const [ticketTotal, setTicketTotal] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
   const [showSetupModal, setShowSetupModal] = useState(true);
 
   // Parse OCR lines into items when lines change
   useEffect(() => {
     if (!lines || lines.length === 0) return;
 
-    const parseItems = () => {
-      const parsedItems = [];
-      
-      // Skip header line and footer lines (total, savings, etc.)
-      const itemLines = lines.filter((line, index) => {
-        const text = line.text.toLowerCase();
-        return index > 0 && 
-               !text.includes('total') && 
-               !text.includes('sparen') && 
-               !text.includes('rundung') && 
-               !text.includes('artikelbezeichnung') &&
-               text.length > 5;
-      });
+    const parsedItems = [];
+    let detectedTotal = null;
 
-      itemLines.forEach((line, index) => {
-        // Parse lines like "Alnatura Mais Chips Na | 1.95 1.95 1"
-        const text = line.text;
-        const parts = text.split(/\s+/);
-        
-        // Look for price patterns (numbers with . or ,)
-        const pricePattern = /(\d+[.,]\d+)/g;
-        const prices = text.match(pricePattern);
-        
-        if (prices && prices.length > 0) {
-          // Take the last price as the total price
-          const totalPrice = parseFloat(prices[prices.length - 1].replace(',', '.'));
-          
-          // Extract item name (everything before the first price)
-          const firstPriceIndex = text.search(/\d+[.,]\d+/);
-          let itemName = text.substring(0, firstPriceIndex).trim();
-          
-          // Clean up item name
-          itemName = itemName.replace(/\s*\|\s*$/, '').trim();
-          
-          if (itemName && !isNaN(totalPrice)) {
-            parsedItems.push({
-              id: index,
-              name: itemName,
-              originalPrice: totalPrice,
-              currentPrice: totalPrice,
-              assignedTo: roommates.map(r => r.id),
-              confidence: line.confidence
-            });
-          }
+    lines.forEach((line, index) => {
+      const text = line.text;
+
+      // detect "Total CHF X" and skip it
+      const totalMatch = text.match(/total\s*CHF\s*([\d.,]+)/i);
+      if (totalMatch) {
+        detectedTotal = parseFloat(totalMatch[1].replace(",", "."));
+        return;
+      }
+
+      // skip other non items lines
+      if (/total/i.test(text) || /sparen/i.test(text) || /rundung/i.test(text) || /artikelbezeichnung/i.test(text)) {
+        return;
+      }
+
+      // parse regular items
+      const pricePattern = /(\d+[.,]\d+)/g;
+      const prices = text.match(pricePattern);
+      if (prices && prices.length > 0) {
+        const totalPrice = parseFloat(prices[prices.length - 1].replace(",", "."));
+        const firstPriceIndex = text.search(/\d+[.,]\d+/);
+        let itemName = text.substring(0, firstPriceIndex).trim();
+        itemName = itemName.replace(/\s*\|\s*$/, "").trim();
+
+        if (itemName && !isNaN(totalPrice)) {
+          parsedItems.push({
+            id: index,
+            name: itemName,
+            originalPrice: totalPrice,
+            currentPrice: totalPrice,
+            assignedTo: [],
+            confidence: line.confidence
+          });
         }
-      });
+      }
+    });
 
-      setItems(parsedItems);
-    };
-
-    parseItems();
+    setItems(parsedItems);
+    setTicketTotal(detectedTotal);
   }, [lines]);
 
+  // updates roommates when added, pay all items by default
   useEffect(() => {
     setItems(items.map(item => {
       return {
@@ -81,6 +75,21 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
       };
     }));
   }, [roommates]);
+
+  // updates error message based on ticket price compared to ocr result
+  useEffect(() => {
+    if (ticketTotal !== null && items.length > 0) {
+      const sumItems = items.reduce((sum, item) => sum + item.currentPrice, 0);
+      if (Math.abs(sumItems - ticketTotal) > 0.05) {
+        setErrorMessage(
+          `⚠️ OCR mismatch: items sum to CHF ${sumItems.toFixed(2)}, but ticket total is CHF ${ticketTotal.toFixed(2)}`
+        );
+      } else {
+        setErrorMessage("");
+      }
+    }
+  }, [items, ticketTotal]);
+
 
   const addRoommate = () => {
     if (newRoommateName.trim()) {
@@ -451,6 +460,12 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
           </table>
         </div>
       </div>
+
+      {errorMessage && (
+        <div className="p-2 mb-2 text-sm text-red-700 bg-red-100 rounded-lg">
+          {errorMessage}
+        </div>
+      )}
 
       {/* Balance Summary */}
       <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
