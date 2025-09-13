@@ -162,31 +162,36 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
   };
 
   const calculateBalances = () => {
+    // initialize balances
     const balances = {};
     roommates.forEach(roommate => {
-      balances[roommate.id] = { paid: 0, owes: 0, owesTo: null };
+      balances[roommate.id] = { paid: 0, share: 0, owesTo: null };
     });
 
+    // compute each person's share (include payer too)
     items.forEach(item => {
-      if (item.assignedTo.length > 0) {
-        const pricePerPerson = item.currentPrice / item.assignedTo.length;
-        item.assignedTo.forEach(roommateId => {
-          if(roommateId !== whoPaid) {
-            balances[roommateId].owes += pricePerPerson;
-            balances[roommateId].owesTo += whoPaid;
-          }
-        });
-      }
+      if (!item.assignedTo || item.assignedTo.length === 0) return;
+      const sharePerPerson = item.currentPrice / item.assignedTo.length;
+
+      item.assignedTo.forEach(rid => {
+        if (!balances[rid]) return; // defensive: skip stale ids
+        balances[rid].share += sharePerPerson;
+        // point debtors to the payer (single-payer model)
+        if (String(rid) !== String(whoPaid)) {
+          balances[rid].owesTo = whoPaid;
+        }
+      });
     });
 
-    // Assuming the first roommate paid for everything
-    const totalAmount = items.reduce((sum, item) => sum + item.currentPrice, 0);
-    if (roommates.length > 0) {
+    // mark whoPaid as having paid the full receipt (you can adapt for multi-payer)
+    const totalAmount = items.reduce((s, it) => s + (it.currentPrice || 0), 0);
+    if (whoPaid && balances[whoPaid]) {
       balances[whoPaid].paid = totalAmount;
     }
 
     return balances;
   };
+
 
   const balances = calculateBalances();
 
@@ -599,46 +604,49 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
 
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
           {roommates.map((roommate) => {
-            const balance = balances[roommate.id];
-            const netBalance = balance.paid - balance.owes;
-            
+            const balance = balances[roommate.id] || { paid: 0, share: 0, owesTo: null };
+            const net = (balance.paid || 0) - (balance.share || 0);
+
             return (
               <div key={roommate.id} className="p-4 border rounded-lg">
                 <div className="flex items-center space-x-2 mb-2">
-                  <div 
-                    className="w-4 h-4 rounded-full flex-shrink-0" 
-                    style={{ backgroundColor: roommate.color }}
-                  ></div>
+                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: roommate.color }} />
                   <span className="font-medium text-gray-900">{roommate.name}</span>
                 </div>
+
                 <div className="space-y-1 text-sm">
-                  <div>Paid: <span className="font-medium">CHF {balance.paid.toFixed(2)}</span></div>
+                  <div>Paid: <span className="font-medium">CHF {(balance.paid || 0).toFixed(2)}</span></div>
+
+                  {/* show contribution (their fair share) */}
                   <div>
-                      {balance.owes > 0 ? (
-                        <>
-                          Owes <span className="font-medium">CHF {balance.owes.toFixed(2)}</span>
-                          {balance.owesTo && (
-                            <span className="ml-1">
-                              to{" "}
-                              <strong>
-                                <span
-                                  style={{
-                                    color: roommates.find(r => r.id === whoPaid)?.color || "inherit"
-                                  }}
-                                >
-                                  {roommates.find(r => r.id === whoPaid)?.name || "Unknown"}
-                                </span>
-                              </strong>
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <>Owes: CHF 0.00</>
-                      )}
+                    Contribution: <span className="font-medium">CHF {(balance.share || 0).toFixed(2)}</span>
+                    {balance.owesTo && balance.share > 0 && String(roommate.id) !== String(whoPaid) && (
+                      <span className="ml-2 text-xs text-gray-500">to <strong style={{ color: roommates.find(r => String(r.id) === String(balance.owesTo))?.color }}>{roommates.find(r => String(r.id) === String(balance.owesTo))?.name || 'Unknown'}</strong></span>
+                    )}
                   </div>
-                  <div className={`font-semibold ${netBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {netBalance >= 0 ? 'To receive' : 'To pay'}: CHF {Math.abs(netBalance).toFixed(2)}
+
+                  {/* net */}
+                  <div className={`font-semibold ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {net > 0 ? 'To receive:' : net < 0 ? 'To pay:' : 'Settled:'}{' '}
+                    CHF {Math.abs(net).toFixed(2)}
                   </div>
+
+                  {/* optionally show list of people who owe this roommate (for payer) */}
+                  {String(roommate.id) === String(whoPaid) && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      Owed by:
+                      <ul className="ml-4">
+                        {Object.entries(balances)
+                          .filter(([id, b]) => b.owesTo && String(b.owesTo) === String(roommate.id))
+                          .map(([id, b]) => (
+                            <li key={id}>
+                              {roommates.find(r => String(r.id) === String(id))?.name || 'Unknown'}: CHF {b.share.toFixed(2)}
+                            </li>
+                          ))
+                        }
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             );
