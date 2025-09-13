@@ -80,6 +80,28 @@ export class OCRProcessor {
     }
   }
 
+  async processAndTranslate(file, onProgress = null) {
+    const result = await this.processImage(file, onProgress);
+    if (!result.success) return result;
+
+    const translatedLines = await Promise.all(
+      result.lines.map(async (line) => {
+        const { translated, detectedLang } = await this.translateLine(line.text);
+        console.log("Result of translation = ", translated);
+        return {
+          ...line,
+          translatedText: translated,
+          detectedLanguage: detectedLang,
+        };
+      })
+    );
+
+    return {
+      ...result,
+      lines: translatedLines,
+    }
+  }
+
   processLines(lines) {
     if (!Array.isArray(lines)) {
       console.warn('Lines is not an array:', lines);
@@ -119,6 +141,23 @@ export class OCRProcessor {
       this.worker = null;
     }
   }
+
+  async translateLine(text) {
+    try {
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=de|en`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      const translated = data?.responseData?.translatedText || text;
+      const detectedLang = data?.responseData?.match || "unknown";
+
+      return { translated, detectedLang };
+    } catch (err) {
+      console.error("Translation error:", err);
+      return { translated: text, detectedLang: "unknown" };
+    }
+  }
+
 }
 
 // Create a singleton instance

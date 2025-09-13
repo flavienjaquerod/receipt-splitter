@@ -10,6 +10,7 @@ export default function Home() {
   const [extractedLines, setExtractedLines] = useState([])
   const [ocrProgress, setOcrProgress] = useState(0)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [showTranslated, setShowTranslated] = useState(true)
 
   const handleFiles = (selectedFiles) => {
     const fileArray = Array.from(selectedFiles)
@@ -37,7 +38,7 @@ export default function Home() {
 
     try {
       console.log('Starting OCR processing...')
-      const result = await ocrProcessor.processImage(
+      const result = await ocrProcessor.processAndTranslate(
         firstImageFile, 
         (progress) => {
           console.log('OCR Progress:', progress)
@@ -282,10 +283,20 @@ export default function Home() {
         {/* Extracted Text Display */}
         {(isProcessing || extractedLines.length > 0) && (
           <div className="mt-8">
+            {/* Toggle Button */}
+            <div className="mb-4 flex justify-end">
+              <button
+                onClick={() => setShowTranslated(prev => !prev)}
+                className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm hover:bg-blue-600 transition"
+              >
+                {showTranslated ? "Show Original (German)" : "Show Translated (English)"}
+              </button>
+            </div>
             <ExtractedTextDisplay 
               lines={extractedLines}
               isLoading={isProcessing}
               progress={ocrProgress}
+              showTranslated={showTranslated}
             />
           </div>
         )}

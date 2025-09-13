@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Users, UserPlus, Trash2, Calculator, Edit2, Check, X } from 'lucide-react';
 
-export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
+export default function ExtractedTextDisplay({ lines, isLoading, progress, showTranslated }) {
   const [roommates, setRoommates] = useState([
     { id: 1, name: 'Person 1', color: '#3B82F6' },
     { id: 2, name: 'Person 2', color: '#EF4444' }
@@ -26,7 +26,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
     let detectedTotal = null;
 
     lines.forEach((line, index) => {
-      const text = line.text;
+      const text = showTranslated && line.translatedText ? line.translatedText : line.text;
 
       // detect "Total CHF X" and skip it
       const totalMatch = text.match(/total\s*CHF\s*([\d.,]+)/i);
@@ -36,7 +36,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
       }
 
       // skip other non items lines
-      if (/total/i.test(text) || /sparen/i.test(text) || /rundung/i.test(text) || /artikelbezeichnung/i.test(text)) {
+      if (/total/i.test(text) || /sparen/i.test(text) || /rundung/i.test(text) || /artikelbezeichnung/i.test(text) || /rounding/i.test(text)) {
         return;
       }
 
@@ -64,7 +64,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress }) {
 
     setItems(parsedItems);
     setTicketTotal(detectedTotal);
-  }, [lines]);
+  }, [lines, showTranslated]);
 
   // updates roommates when added, pay all items by default
   useEffect(() => {
