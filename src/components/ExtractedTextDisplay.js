@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, UserPlus, Trash2, Calculator, Edit2, Check, X } from 'lucide-react';
+import { Users, UserPlus, Trash2, Calculator, Edit2, Check, X, FileText, Eye, EyeOff } from 'lucide-react';
 
 export default function ExtractedTextDisplay({ lines, isLoading, progress, showTranslated }) {
   const [roommates, setRoommates] = useState([
@@ -14,56 +14,72 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
   const [whoPaid, setwhoPaid] = useState(1);
   const [editingRoommate, setEditingRoommate] = useState(null);
   const [editingName, setEditingName] = useState('');
-  const [ticketTotal, setTicketTotal] = useState(null);
+  const [ticketTotals, setTicketTotals] = useState({});
   const [errorMessage, setErrorMessage] = useState("");
-  const [showSetupModal, setShowSetupModal] = useState(true);
+  const [hiddenSources, setHiddenSources] = useState(new Set());
+
+  // Get unique source files
+  const sourceFiles = [...new Set(lines.map(line => line.sourceFile).filter(Boolean))];
 
   // Parse OCR lines into items when lines change
   useEffect(() => {
     if (!lines || lines.length === 0) return;
 
     const parsedItems = [];
-    let detectedTotal = null;
+    let detectedTotals = {};
 
-    lines.forEach((line, index) => {
-      const text = showTranslated && line.translatedText ? line.translatedText : line.text;
+    // Group lines by source file
+    const linesBySource = lines.reduce((acc, line) => {
+      const source = line.sourceFile || 'unknown';
+      if (!acc[source]) acc[source] = [];
+      acc[source].push(line);
+      return acc;
+    }, {});
 
-      // detect "Total CHF X" and skip it
-      const totalMatch = text.match(/total\s*CHF\s*([\d.,]+)/i);
-      if (totalMatch) {
-        detectedTotal = parseFloat(totalMatch[1].replace(",", "."));
-        return;
-      }
+    // Process each source file separately
+    Object.entries(linesBySource).forEach(([sourceFile, sourceLines]) => {
+      sourceLines.forEach((line, index) => {
+        const text = showTranslated && line.translatedText ? line.translatedText : line.text;
 
-      // skip other non items lines
-      if (/total/i.test(text) || /sparen/i.test(text) || /rundung/i.test(text) || /artikelbezeichnung/i.test(text) || /rounding/i.test(text)) {
-        return;
-      }
-
-      // parse regular items
-      const pricePattern = /(\d+[.,]\d+)/g;
-      const prices = text.match(pricePattern);
-      if (prices && prices.length > 0) {
-        const totalPrice = parseFloat(prices[prices.length - 1].replace(",", "."));
-        const firstPriceIndex = text.search(/\d+[.,]\d+/);
-        let itemName = text.substring(0, firstPriceIndex).trim();
-        itemName = itemName.replace(/\s*\|\s*$/, "").trim();
-
-        if (itemName && !isNaN(totalPrice)) {
-          parsedItems.push({
-            id: index,
-            name: itemName,
-            originalPrice: totalPrice,
-            currentPrice: totalPrice,
-            assignedTo: [],
-            confidence: line.confidence
-          });
+        // detect "Total CHF X" and skip it
+        const totalMatch = text.match(/total\s*CHF\s*([\d.,]+)/i);
+        if (totalMatch) {
+          detectedTotals[sourceFile] = parseFloat(totalMatch[1].replace(",", "."));
+          return;
         }
-      }
+
+        // skip other non items lines
+        if (/total/i.test(text) || /sparen/i.test(text) || /rundung/i.test(text) || /artikelbezeichnung/i.test(text) || /rounding/i.test(text)) {
+          return;
+        }
+
+        // parse regular items
+        const pricePattern = /(\d+[.,]\d+)/g;
+        const prices = text.match(pricePattern);
+        if (prices && prices.length > 0) {
+          const totalPrice = parseFloat(prices[prices.length - 1].replace(",", "."));
+          const firstPriceIndex = text.search(/\d+[.,]\d+/);
+          let itemName = text.substring(0, firstPriceIndex).trim();
+          itemName = itemName.replace(/\s*\|\s*$/, "").trim();
+
+          if (itemName && !isNaN(totalPrice)) {
+            parsedItems.push({
+              id: `${sourceFile}-${index}`,
+              name: itemName,
+              originalPrice: totalPrice,
+              currentPrice: totalPrice,
+              assignedTo: [],
+              confidence: line.confidence,
+              sourceFile: sourceFile,
+              sourceIndex: line.sourceIndex || 0
+            });
+          }
+        }
+      });
     });
 
     setItems(parsedItems);
-    setTicketTotal(detectedTotal);
+    setTicketTotals(detectedTotals);
   }, [lines, showTranslated]);
 
   // updates roommates when added, pay all items by default
@@ -78,18 +94,25 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
 
   // updates error message based on ticket price compared to ocr result
   useEffect(() => {
-    if (ticketTotal !== null && items.length > 0) {
-      const sumItems = items.reduce((sum, item) => sum + item.currentPrice, 0);
-      if (Math.abs(sumItems - ticketTotal) > 0.05) {
-        setErrorMessage(
-          `⚠️ OCR mismatch: items sum to CHF ${sumItems.toFixed(2)}, but ticket total is CHF ${ticketTotal.toFixed(2)}`
-        );
+    if (Object.keys(ticketTotals).length > 0 && items.length > 0) {
+      const errors = [];
+      
+      Object.entries(ticketTotals).forEach(([sourceFile, ticketTotal]) => {
+        const sourceItems = items.filter(item => item.sourceFile === sourceFile);
+        const sumItems = sourceItems.reduce((sum, item) => sum + item.currentPrice, 0);
+        
+        if (Math.abs(sumItems - ticketTotal) > 0.05) {
+          errors.push(`${sourceFile}: items sum to CHF ${sumItems.toFixed(2)}, but ticket total is CHF ${ticketTotal.toFixed(2)}`);
+        }
+      });
+      
+      if (errors.length > 0) {
+        setErrorMessage(`⚠️ OCR mismatches: ${errors.join(' | ')}`);
       } else {
         setErrorMessage("");
       }
     }
-  }, [items, ticketTotal]);
-
+  }, [items, ticketTotals]);
 
   const addRoommate = () => {
     if (newRoommateName.trim()) {
@@ -161,6 +184,16 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
     ));
   };
 
+  const toggleSourceVisibility = (sourceFile) => {
+    const newHidden = new Set(hiddenSources);
+    if (newHidden.has(sourceFile)) {
+      newHidden.delete(sourceFile);
+    } else {
+      newHidden.add(sourceFile);
+    }
+    setHiddenSources(newHidden);
+  };
+
   const calculateBalances = () => {
     // initialize balances
     const balances = {};
@@ -192,8 +225,10 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
     return balances;
   };
 
-
   const balances = calculateBalances();
+
+  // Get visible items (not from hidden sources)
+  const visibleItems = items.filter(item => !hiddenSources.has(item.sourceFile));
 
   if (isLoading) {
     return (
@@ -212,7 +247,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
         
         <div className="flex items-center justify-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <span className="ml-3 text-gray-600">Reading your receipt...</span>
+          <span className="ml-3 text-gray-600">Reading your receipts...</span>
         </div>
       </div>
     );
@@ -224,6 +259,56 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
 
   return (
     <div className="space-y-6">
+      {/* Source Files Filter */}
+      {sourceFiles.length > 1 && (
+        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2">
+              <FileText className="w-5 h-5 text-purple-500" />
+              <h3 className="text-lg font-semibold text-gray-900">Receipt Sources</h3>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {sourceFiles.map((sourceFile, index) => {
+              const sourceItems = items.filter(item => item.sourceFile === sourceFile);
+              const sourceTotal = sourceItems.reduce((sum, item) => sum + item.currentPrice, 0);
+              const isHidden = hiddenSources.has(sourceFile);
+              
+              return (
+                <div key={sourceFile} className={`p-3 rounded-lg border transition-all ${isHidden ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-gray-900 text-sm truncate flex-1">
+                      {sourceFile}
+                    </span>
+                    <button
+                      onClick={() => toggleSourceVisibility(sourceFile)}
+                      className={`ml-2 p-1 rounded transition-colors ${isHidden ? 'text-gray-400 hover:text-gray-600' : 'text-blue-500 hover:text-blue-700'}`}
+                    >
+                      {isHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    {sourceItems.length} items • CHF {sourceTotal.toFixed(2)}
+                    {ticketTotals[sourceFile] && (
+                      <span className={`ml-2 ${Math.abs(sourceTotal - ticketTotals[sourceFile]) > 0.05 ? 'text-red-600' : 'text-green-600'}`}>
+                        (Receipt: CHF {ticketTotals[sourceFile].toFixed(2)})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {sourceFiles.some(sf => hiddenSources.has(sf)) && (
+            <div className="mt-3 text-xs text-gray-500">
+              Hidden sources are excluded from splitting calculations
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Roommate Management */}
       <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100">
         <div className="flex items-center justify-between mb-4">
@@ -357,8 +442,19 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
       {/* Items - Responsive Layout */}
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
         <div className="p-4 sm:p-6 border-b border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900">Receipt Items</h3>
-          <p className="text-sm text-gray-600">{items.length} items found</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Receipt Items</h3>
+              <p className="text-sm text-gray-600">
+                {visibleItems.length} items from {sourceFiles.filter(sf => !hiddenSources.has(sf)).length} receipt{sourceFiles.filter(sf => !hiddenSources.has(sf)).length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            {sourceFiles.length > 1 && (
+              <div className="text-xs text-gray-500">
+                {hiddenSources.size > 0 && `${hiddenSources.size} source${hiddenSources.size !== 1 ? 's' : ''} hidden`}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Desktop Table View */}
@@ -367,17 +463,21 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Split</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {items.map((item) => (
+              {visibleItems.map((item) => (
                 <tr key={item.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{item.name}</div>
                     <div className="text-xs text-gray-500">Confidence: {item.confidence}%</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-xs text-gray-600 truncate max-w-32">{item.sourceFile}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {editingItem === item.id ? (
@@ -474,7 +574,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
 
         {/* Mobile/Tablet Card View */}
         <div className="lg:hidden divide-y divide-gray-100">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <div key={item.id} className="p-4 space-y-3">
               {/* Item Header */}
               <div className="flex items-start justify-between">
@@ -483,7 +583,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                     {item.name}
                   </h4>
                   <p className="text-xs text-gray-500 mt-1">
-                    Confidence: {item.confidence}%
+                    {item.sourceFile} • Confidence: {item.confidence}%
                   </p>
                 </div>
                 
@@ -600,6 +700,9 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
         <div className="flex items-center space-x-2 mb-4">
           <Calculator className="w-5 h-5 text-green-500" />
           <h3 className="text-lg font-semibold text-gray-900">Balance Summary</h3>
+          <span className="text-sm text-gray-500">
+            (from {sourceFiles.filter(sf => !hiddenSources.has(sf)).length} receipt{sourceFiles.filter(sf => !hiddenSources.has(sf)).length !== 1 ? 's' : ''})
+          </span>
         </div>
 
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
@@ -655,11 +758,24 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
 
         <div className="mt-4 pt-4 border-t border-gray-200">
           <div className="flex justify-between items-center">
-            <span className="text-lg font-semibold text-gray-900">Total Receipt:</span>
+            <span className="text-lg font-semibold text-gray-900">Total Combined Receipts:</span>
             <span className="text-lg font-bold text-gray-900">
-              CHF {items.reduce((sum, item) => sum + item.currentPrice, 0).toFixed(2)}
+              CHF {visibleItems.reduce((sum, item) => sum + item.currentPrice, 0).toFixed(2)}
             </span>
           </div>
+          {Object.keys(ticketTotals).length > 0 && (
+            <div className="mt-2 space-y-1">
+              {Object.entries(ticketTotals)
+                .filter(([sourceFile]) => !hiddenSources.has(sourceFile))
+                .map(([sourceFile, total]) => (
+                  <div key={sourceFile} className="flex justify-between text-sm text-gray-600">
+                    <span className="truncate max-w-xs">{sourceFile}:</span>
+                    <span>CHF {total.toFixed(2)}</span>
+                  </div>
+                ))
+              }
+            </div>
+          )}
         </div>
       </div>
     </div>
