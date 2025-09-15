@@ -17,6 +17,8 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
   const [ticketTotals, setTicketTotals] = useState({});
   const [errorMessage, setErrorMessage] = useState("");
   const [hiddenSources, setHiddenSources] = useState(new Set());
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemPrice, setNewItemPrice] = useState('');
 
   // Get unique source files
   const sourceFiles = [...new Set(lines.map(line => line.sourceFile).filter(Boolean))];
@@ -146,6 +148,24 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
       ...item,
       assignedTo: item.assignedTo.filter(rid => rid !== id)
     })));
+  };
+
+  const addItem = () => {
+    if (!newItemName.trim() || isNaN(parseFloat(newItemPrice))) return;
+
+    const newItem = {
+      id: Date.now(),
+      name: newItemName.trim(),
+      originalPrice: parseFloat(newItemPrice),
+      currentPrice: parseFloat(newItemPrice),
+      assignedTo: roommates.map(r => r.id), // default: all roommates
+      confidence: 100,
+      sourceFile: "Manual entry",
+    };
+
+    setItems([...items, newItem]);
+    setNewItemName('');
+    setNewItemPrice('');
   };
 
   const toggleAssignment = (itemId, roommateId) => {
@@ -436,6 +456,33 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
               ))}
             </select>
           </div>
+        </div>
+      </div>
+
+      {/* Add Item Form */}
+      <div className="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0">
+          <input
+            type="text"
+            placeholder="Item name"
+            value={newItemName}
+            onChange={(e) => setNewItemName(e.target.value)}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <input
+            type="number"
+            step="0.01"
+            placeholder="Price"
+            value={newItemPrice}
+            onChange={(e) => setNewItemPrice(e.target.value)}
+            className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={addItem}
+            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium"
+          >
+            + Add Item
+          </button>
         </div>
       </div>
 

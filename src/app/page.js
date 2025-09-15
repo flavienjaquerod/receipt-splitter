@@ -10,7 +10,7 @@ export default function Home() {
   const [extractedLines, setExtractedLines] = useState([])
   const [ocrProgress, setOcrProgress] = useState(0)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [showTranslated, setShowTranslated] = useState(true)
+  const [showTranslated, setShowTranslated] = useState(false)
   const [currentProcessingFile, setCurrentProcessingFile] = useState('')
   const [processedFileCount, setProcessedFileCount] = useState(0)
 
