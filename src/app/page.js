@@ -54,11 +54,8 @@ export default function Home() {
         const result = await ocrProcessor.processAndTranslate(
           file, 
           (progress) => {
-            // Calculate overall progress across all files
-            const fileProgress = (currentFileIndex / imageFiles.length) * 100
-            const currentFileProgress = (progress / imageFiles.length)
-            const totalProgress = Math.round(fileProgress + currentFileProgress)
-            setOcrProgress(totalProgress)
+            const overall = ((currentFileIndex * 100) + progress) / imageFiles.length;
+            setOcrProgress(Math.round(overall));
           }
         )
 
@@ -352,12 +349,21 @@ export default function Home() {
         {(isProcessing || extractedLines.length > 0) && (
           <div className="mt-6 sm:mt-8">
             {/* Toggle Button */}
-            <div className="mb-3 sm:mb-4 flex justify-center sm:justify-end">
+            <div className="mb-3 sm:mb-4 flex justify-center sm:justify-end items-center space-x-3">
+              <span className="text-xs sm:text-sm text-gray-700">
+                {showTranslated ? "Showing English" : "Showing Original"}
+              </span>
               <button
                 onClick={() => setShowTranslated(prev => !prev)}
-                className="px-3 sm:px-4 py-2 rounded-lg bg-blue-500 text-white text-xs sm:text-sm hover:bg-blue-600 transition w-full sm:w-auto"
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  showTranslated ? "bg-blue-500" : "bg-gray-300"
+                }`}
               >
-                {showTranslated ? "Show Original (German)" : "Show Translated (English)"}
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showTranslated ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
               </button>
             </div>
             <ExtractedTextDisplay 
