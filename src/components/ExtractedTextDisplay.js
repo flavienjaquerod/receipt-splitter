@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Users, UserPlus, Trash2, Calculator, Edit2, Check, X, FileText, Eye, EyeOff } from 'lucide-react';
+import { exportReceiptPdf } from '../lib/exportPdf';
 
 export default function ExtractedTextDisplay({ lines, isLoading, progress, showTranslated }) {
   const [roommates, setRoommates] = useState([
@@ -246,6 +247,25 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
   };
 
   const balances = calculateBalances();
+
+  function handleExport() {
+    const doc = exportReceiptPdf(items, roommates, balances, "My Grocery Receipt");
+
+    // Save as PDF
+    doc.save("receipt-summary.pdf");
+
+    // Also try Web Share API for mobile
+    if (navigator.share) {
+      doc.output("blob").then(blob => {
+        const file = new File([blob], "receipt-summary.pdf", { type: "application/pdf" });
+        navigator.share({
+          title: "Receipt Splitter",
+          text: "Here’s our split summary!",
+          files: [file],
+        }).catch(err => console.log("Share cancelled", err));
+      });
+    }
+  }
 
   // Get visible items (not from hidden sources)
   const visibleItems = items.filter(item => !hiddenSources.has(item.sourceFile));
@@ -741,6 +761,29 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
           {errorMessage}
         </div>
       )}
+
+      <div className="flex justify-end mb-6">
+        <button
+          onClick={handleExport}
+          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-medium rounded-lg shadow-md hover:from-blue-600 hover:to-purple-700 transition-all"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-4 h-4 mr-2"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+          Export & Share
+        </button>
+      </div>
 
       {/* Balance Summary */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100 dark:border-gray-700">
