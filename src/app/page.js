@@ -117,7 +117,7 @@ function HomeContent() {
   }
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 min-h-screen transition-all duration-700 ease-in-out">
+    <div className="min-h-screen transition-all duration-700 ease-in-out">
       {/* Header */}
       <header className="animate-fade-in">
         <nav className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
