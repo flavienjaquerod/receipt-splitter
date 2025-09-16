@@ -252,13 +252,13 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Extracting Text...</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Extracting Text...</h3>
           <span className="text-sm text-blue-500">{progress}%</span>
         </div>
         
-        <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
           <div 
             className="bg-blue-500 h-2 rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
@@ -267,7 +267,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
         
         <div className="flex items-center justify-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <span className="ml-3 text-gray-600">Reading your receipts...</span>
+          <span className="ml-3 text-gray-600 dark:text-gray-300">Reading your receipts...</span>
         </div>
       </div>
     );
@@ -278,14 +278,14 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 transition-all duration-700 ease-in-out">
       {/* Source Files Filter */}
       {sourceFiles.length > 1 && (
-        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
-              <FileText className="w-5 h-5 text-purple-500" />
-              <h3 className="text-lg font-semibold text-gray-900">Receipt Sources</h3>
+              <FileText className="w-5 h-5 text-purple-500 dark:text-purple-400" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Receipt Sources</h3>
             </div>
           </div>
 
@@ -296,22 +296,22 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
               const isHidden = hiddenSources.has(sourceFile);
               
               return (
-                <div key={sourceFile} className={`p-3 rounded-lg border transition-all ${isHidden ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}>
+                <div key={sourceFile} className={`p-3 rounded-lg border transition-all ${isHidden ? 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600' : 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800'}`}>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-gray-900 text-sm truncate flex-1">
+                    <span className="font-medium text-gray-900 dark:text-white text-sm truncate flex-1">
                       {sourceFile}
                     </span>
                     <button
                       onClick={() => toggleSourceVisibility(sourceFile)}
-                      className={`ml-2 p-1 rounded transition-colors ${isHidden ? 'text-gray-400 hover:text-gray-600' : 'text-blue-500 hover:text-blue-700'}`}
+                      className={`ml-2 p-1 rounded transition-colors ${isHidden ? 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300' : 'text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300'}`}
                     >
                       {isHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <div className="text-xs text-gray-600">
+                  <div className="text-xs text-gray-600 dark:text-gray-300">
                     {sourceItems.length} items • CHF {sourceTotal.toFixed(2)}
                     {ticketTotals[sourceFile] && (
-                      <span className={`ml-2 ${Math.abs(sourceTotal - ticketTotals[sourceFile]) > 0.05 ? 'text-red-600' : 'text-green-600'}`}>
+                      <span className={`ml-2 ${Math.abs(sourceTotal - ticketTotals[sourceFile]) > 0.05 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                         (Receipt: CHF {ticketTotals[sourceFile].toFixed(2)})
                       </span>
                     )}
@@ -322,7 +322,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
           </div>
 
           {sourceFiles.some(sf => hiddenSources.has(sf)) && (
-            <div className="mt-3 text-xs text-gray-500">
+            <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
               Hidden sources are excluded from splitting calculations
             </div>
           )}
@@ -330,11 +330,11 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
       )}
 
       {/* Roommate Management */}
-      <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
-            <Users className="w-5 h-5 text-blue-500" />
-            <h3 className="text-lg font-semibold text-gray-900">Roommates</h3>
+            <Users className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Roommates</h3>
           </div>
           <button
             onClick={() => setIsAddingRoommate(true)}
@@ -347,7 +347,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           {roommates.map((roommate) => (
-            <div key={roommate.id} className="flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-lg">
+            <div key={roommate.id} className="flex items-center space-x-2 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
               <div 
                 className="w-4 h-4 rounded-full flex-shrink-0" 
                 style={{ backgroundColor: roommate.color }}
@@ -358,13 +358,13 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                     type="text"
                     value={editingName}
                     onChange={(e) => setEditingName(e.target.value)}
-                    className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0"
+                    className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0"
                     onKeyPress={(e) => e.key === 'Enter' && updateRoommateName(roommate.id, editingName)}
                     autoFocus
                   />
                   <button
                     onClick={() => updateRoommateName(roommate.id, editingName)}
-                    className="text-green-600 hover:text-green-800 flex-shrink-0"
+                    className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 flex-shrink-0"
                   >
                     <Check className="w-4 h-4" />
                   </button>
@@ -373,17 +373,17 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                       setEditingRoommate(null);
                       setEditingName('');
                     }}
-                    className="text-red-600 hover:text-red-800 flex-shrink-0"
+                    className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 flex-shrink-0"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               ) : (
                 <>
-                  <span className="font-medium text-gray-800 flex-1 truncate">{roommate.name}</span>
+                  <span className="font-medium text-gray-800 dark:text-white flex-1 truncate">{roommate.name}</span>
                   <div className="flex items-center space-x-1 flex-shrink-0">
                     {whoPaid === roommate.id && (
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full whitespace-nowrap">
+                      <span className="text-xs bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 px-2 py-1 rounded-full whitespace-nowrap">
                         Paid
                       </span>
                     )}
@@ -392,14 +392,14 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                         setEditingRoommate(roommate.id);
                         setEditingName(roommate.name);
                       }}
-                      className="text-gray-400 hover:text-gray-600"
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                     >
                       <Edit2 className="w-3 h-3" />
                     </button>
                     {roommates.length > 2 && (
                       <button
                         onClick={() => removeRoommate(roommate.id)}
-                        className="text-red-500 hover:text-red-700 transition-colors"
+                        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -419,7 +419,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                 value={newRoommateName}
                 onChange={(e) => setNewRoommateName(e.target.value)}
                 placeholder="Roommate name"
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 onKeyPress={(e) => e.key === 'Enter' && addRoommate()}
               />
               <button
@@ -441,13 +441,13 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
           ) : null}
           
           <div className="flex items-center space-x-3 w-full sm:w-auto">
-            <div className="text-sm text-gray-600 whitespace-nowrap">
+            <div className="text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">
               Who paid?
             </div>
             <select
               value={whoPaid}
               onChange={(e) => setwhoPaid(parseInt(e.target.value))}
-              className="flex-1 sm:flex-initial px-3 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 sm:flex-initial px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {roommates.map((roommate) => (
                 <option key={roommate.id} value={roommate.id}>
@@ -459,45 +459,45 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
         </div>
       </div>
 
-      {/* Add Item Form */}
-      <div className="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0">
-          <input
-            type="text"
-            placeholder="Item name"
-            value={newItemName}
-            onChange={(e) => setNewItemName(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="number"
-            step="0.01"
-            placeholder="Price"
-            value={newItemPrice}
-            onChange={(e) => setNewItemPrice(e.target.value)}
-            className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            onClick={addItem}
-            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium"
-          >
-            + Add Item
-          </button>
-        </div>
-      </div>
-
       {/* Items - Responsive Layout */}
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-        <div className="p-4 sm:p-6 border-b border-gray-100">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+        {/* Add Item Form */}
+        <div className="px-4 sm:px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0">
+            <input
+              type="text"
+              placeholder="Item name"
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="number"
+              step="0.01"
+              placeholder="Price"
+              value={newItemPrice}
+              onChange={(e) => setNewItemPrice(e.target.value)}
+              className="w-28 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              onClick={addItem}
+              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium"
+            >
+              + Add Item
+            </button>
+          </div>
+        </div>
+
+        <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Receipt Items</h3>
-              <p className="text-sm text-gray-600">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Receipt Items</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
                 {visibleItems.length} items from {sourceFiles.filter(sf => !hiddenSources.has(sf)).length} receipt{sourceFiles.filter(sf => !hiddenSources.has(sf)).length !== 1 ? 's' : ''}
               </p>
             </div>
             {sourceFiles.length > 1 && (
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-gray-500 dark:text-gray-400">
                 {hiddenSources.size > 0 && `${hiddenSources.size} source${hiddenSources.size !== 1 ? 's' : ''} hidden`}
               </div>
             )}
@@ -507,24 +507,24 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
         {/* Desktop Table View */}
         <div className="hidden lg:block overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Split</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Item</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Source</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Price</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Assigned To</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Split</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
               {visibleItems.map((item) => (
-                <tr key={item.id}>
+                <tr key={item.id} className="dark:bg-gray-800">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                    <div className="text-xs text-gray-500">Confidence: {item.confidence}%</div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Confidence: {item.confidence}%</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-xs text-gray-600 truncate max-w-32">{item.sourceFile}</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-300 truncate max-w-32">{item.sourceFile}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {editingItem === item.id ? (
@@ -534,12 +534,12 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                           step="0.01"
                           value={editPrice}
                           onChange={(e) => setEditPrice(e.target.value)}
-                          className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                           onKeyPress={(e) => e.key === 'Enter' && updateItemPrice(item.id, editPrice)}
                         />
                         <button
                           onClick={() => updateItemPrice(item.id, editPrice)}
-                          className="text-green-600 hover:text-green-800"
+                          className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
                         >
                           <Check className="w-4 h-4" />
                         </button>
@@ -548,20 +548,20 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                             setEditingItem(null);
                             setEditPrice('');
                           }}
-                          className="text-red-600 hover:text-red-800"
+                          className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                         >
                           <X className="w-4 h-4" />
                         </button>
                       </div>
                     ) : (
                       <div className="flex items-center space-x-2">
-                        <span className="text-sm font-medium text-gray-900">CHF {item.currentPrice.toFixed(2)}</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">CHF {item.currentPrice.toFixed(2)}</span>
                         <button
                           onClick={() => {
                             setEditingItem(item.id);
                             setEditPrice(item.currentPrice.toString());
                           }}
-                          className="text-gray-400 hover:text-gray-600"
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
@@ -576,7 +576,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                           className={`px-2 py-1 text-xs rounded-full ${
                             item.assignedTo.includes(roommate.id)
                               ? 'text-white'
-                              : 'text-gray-600 bg-gray-100'
+                              : 'text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700'
                           }`}
                           style={{
                             backgroundColor: item.assignedTo.includes(roommate.id) ? roommate.color : undefined
@@ -596,7 +596,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                           className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                             item.assignedTo.includes(roommate.id)
                               ? 'text-white border-transparent'
-                              : 'text-gray-600 border-gray-300 hover:border-gray-400'
+                              : 'text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
                           }`}
                           style={{
                             backgroundColor: item.assignedTo.includes(roommate.id) ? roommate.color : undefined
@@ -607,7 +607,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                       ))}
                       <button
                         onClick={() => toggleAllAssignments(item.id)}
-                        className="px-3 py-1 text-xs rounded-full border border-blue-300 text-blue-600 hover:bg-blue-50 transition-colors"
+                        className="px-3 py-1 text-xs rounded-full border border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
                       >
                         All
                       </button>
@@ -620,16 +620,16 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
         </div>
 
         {/* Mobile/Tablet Card View */}
-        <div className="lg:hidden divide-y divide-gray-100">
+        <div className="lg:hidden divide-y divide-gray-100 dark:divide-gray-600">
           {visibleItems.map((item) => (
             <div key={item.id} className="p-4 space-y-3">
               {/* Item Header */}
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-gray-900 text-sm leading-tight pr-2">
+                  <h4 className="font-medium text-gray-900 dark:text-white text-sm leading-tight pr-2">
                     {item.name}
                   </h4>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {item.sourceFile} • Confidence: {item.confidence}%
                   </p>
                 </div>
@@ -643,12 +643,12 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                         step="0.01"
                         value={editPrice}
                         onChange={(e) => setEditPrice(e.target.value)}
-                        className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-16 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         onKeyPress={(e) => e.key === 'Enter' && updateItemPrice(item.id, editPrice)}
                       />
                       <button
                         onClick={() => updateItemPrice(item.id, editPrice)}
-                        className="text-green-600 hover:text-green-800"
+                        className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
                       >
                         <Check className="w-4 h-4" />
                       </button>
@@ -657,14 +657,14 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                           setEditingItem(null);
                           setEditPrice('');
                         }}
-                        className="text-red-600 hover:text-red-800"
+                        className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                       >
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                   ) : (
                     <div className="flex items-center space-x-2">
-                      <span className="text-sm font-bold text-gray-900 whitespace-nowrap">
+                      <span className="text-sm font-bold text-gray-900 dark:text-white whitespace-nowrap">
                         CHF {item.currentPrice.toFixed(2)}
                       </span>
                       <button
@@ -672,7 +672,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                           setEditingItem(item.id);
                           setEditPrice(item.currentPrice.toString());
                         }}
-                        className="text-gray-400 hover:text-gray-600"
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                       >
                         <Edit2 className="w-3 h-3" />
                       </button>
@@ -684,12 +684,12 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
               {/* Assignment Display */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-gray-700 uppercase tracking-wide">
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide">
                     Split between:
                   </span>
                   <button
                     onClick={() => toggleAllAssignments(item.id)}
-                    className="px-2 py-1 text-xs rounded-full border border-blue-300 text-blue-600 hover:bg-blue-50 transition-colors"
+                    className="px-2 py-1 text-xs rounded-full border border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
                   >
                     Toggle All
                   </button>
@@ -703,7 +703,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                       className={`px-3 py-2 text-xs rounded-full border transition-all min-h-[32px] ${
                         item.assignedTo.includes(roommate.id)
                           ? 'text-white border-transparent shadow-sm'
-                          : 'text-gray-600 border-gray-300 hover:border-gray-400 bg-white'
+                          : 'text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
                       }`}
                       style={{
                         backgroundColor: item.assignedTo.includes(roommate.id) ? roommate.color : undefined
@@ -717,16 +717,16 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
 
               {/* Cost Per Person */}
               {item.assignedTo.length > 0 && (
-                <div className="pt-2 border-t border-gray-100">
+                <div className="pt-2 border-t border-gray-100 dark:border-gray-600">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-600">
+                    <span className="text-xs text-gray-600 dark:text-gray-300">
                       Cost per person:
                     </span>
-                    <span className="text-xs font-semibold text-gray-900">
+                    <span className="text-xs font-semibold text-gray-900 dark:text-white">
                       CHF {(item.currentPrice / item.assignedTo.length).toFixed(2)}
                     </span>
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Split {item.assignedTo.length} way{item.assignedTo.length !== 1 ? 's' : ''}
                   </div>
                 </div>
@@ -737,17 +737,17 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
       </div>
 
       {errorMessage && (
-        <div className="p-3 text-sm text-red-700 bg-red-100 rounded-lg">
+        <div className="p-3 text-sm text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
           {errorMessage}
         </div>
       )}
 
       {/* Balance Summary */}
-      <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100 dark:border-gray-700">
         <div className="flex items-center space-x-2 mb-4">
-          <Calculator className="w-5 h-5 text-green-500" />
-          <h3 className="text-lg font-semibold text-gray-900">Balance Summary</h3>
-          <span className="text-sm text-gray-500">
+          <Calculator className="w-5 h-5 text-green-500 dark:text-green-400" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Balance Summary</h3>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
             (from {sourceFiles.filter(sf => !hiddenSources.has(sf)).length} receipt{sourceFiles.filter(sf => !hiddenSources.has(sf)).length !== 1 ? 's' : ''})
           </span>
         </div>
@@ -758,32 +758,29 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
             const net = (balance.paid || 0) - (balance.share || 0);
 
             return (
-              <div key={roommate.id} className="p-4 border rounded-lg">
+              <div key={roommate.id} className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50">
                 <div className="flex items-center space-x-2 mb-2">
                   <div className="w-4 h-4 rounded-full" style={{ backgroundColor: roommate.color }} />
-                  <span className="font-medium text-gray-900">{roommate.name}</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{roommate.name}</span>
                 </div>
 
                 <div className="space-y-1 text-sm">
-                  <div>Paid: <span className="font-medium">CHF {(balance.paid || 0).toFixed(2)}</span></div>
+                  <div className="text-gray-700 dark:text-gray-300">Paid: <span className="font-medium">CHF {(balance.paid || 0).toFixed(2)}</span></div>
 
-                  {/* show contribution (their fair share) */}
-                  <div>
+                  <div className="text-gray-700 dark:text-gray-300">
                     Contribution: <span className="font-medium">CHF {(balance.share || 0).toFixed(2)}</span>
                     {balance.owesTo && balance.share > 0 && String(roommate.id) !== String(whoPaid) && (
-                      <span className="ml-2 text-xs text-gray-500">to <strong style={{ color: roommates.find(r => String(r.id) === String(balance.owesTo))?.color }}>{roommates.find(r => String(r.id) === String(balance.owesTo))?.name || 'Unknown'}</strong></span>
+                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">to <strong style={{ color: roommates.find(r => String(r.id) === String(balance.owesTo))?.color }}>{roommates.find(r => String(r.id) === String(balance.owesTo))?.name || 'Unknown'}</strong></span>
                     )}
                   </div>
 
-                  {/* net */}
-                  <div className={`font-semibold ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <div className={`font-semibold ${net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                     {net > 0 ? 'To receive:' : net < 0 ? 'To pay:' : 'Settled:'}{' '}
                     CHF {Math.abs(net).toFixed(2)}
                   </div>
 
-                  {/* optionally show list of people who owe this roommate (for payer) */}
                   {String(roommate.id) === String(whoPaid) && (
-                    <div className="mt-2 text-xs text-gray-500">
+                    <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                       Owed by:
                       <ul className="ml-4">
                         {Object.entries(balances)
@@ -803,10 +800,10 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
           })}
         </div>
 
-        <div className="mt-4 pt-4 border-t border-gray-200">
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
           <div className="flex justify-between items-center">
-            <span className="text-lg font-semibold text-gray-900">Total Combined Receipts:</span>
-            <span className="text-lg font-bold text-gray-900">
+            <span className="text-lg font-semibold text-gray-900 dark:text-white">Total Combined Receipts:</span>
+            <span className="text-lg font-bold text-gray-900 dark:text-white">
               CHF {visibleItems.reduce((sum, item) => sum + item.currentPrice, 0).toFixed(2)}
             </span>
           </div>
@@ -815,7 +812,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
               {Object.entries(ticketTotals)
                 .filter(([sourceFile]) => !hiddenSources.has(sourceFile))
                 .map(([sourceFile, total]) => (
-                  <div key={sourceFile} className="flex justify-between text-sm text-gray-600">
+                  <div key={sourceFile} className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
                     <span className="truncate max-w-xs">{sourceFile}:</span>
                     <span>CHF {total.toFixed(2)}</span>
                   </div>
