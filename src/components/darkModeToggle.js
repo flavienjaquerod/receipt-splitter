@@ -4,6 +4,10 @@ import { useDarkMode } from '../contexts/darkModeContext';
 export default function DarkModeToggle() {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
 
+  if(isDarkMode === null) {
+    return <div className='w-10 h-10'/>
+  }
+
   return (
     <button
       onClick={toggleDarkMode}
