@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable"; // ✅ Correct import
+import autoTable from "jspdf-autotable";
 
-export function exportReceiptPdf(items, roommates, balances, receiptName = "Receipt") {
+export function exportReceiptPdf(items, roommates, balances, ticketTotals = {}, receiptName = "Receipt") {
   const doc = new jsPDF();
 
   // Title
@@ -16,10 +16,9 @@ export function exportReceiptPdf(items, roommates, balances, receiptName = "Rece
   const itemRows = items.map(item => [
     item.name,
     `CHF ${item.currentPrice.toFixed(2)}`,
-    item.assignedTo.map(id => {
-      const r = roommates.find(r => r.id === id);
-      return r ? r.name : "Unknown";
-    }).join(", ")
+    item.assignedTo
+      .map(id => roommates.find(r => String(r.id) === String(id))?.name || "Unknown")
+      .join(", ")
   ]);
 
   autoTable(doc, {
@@ -31,26 +30,42 @@ export function exportReceiptPdf(items, roommates, balances, receiptName = "Rece
   });
 
   // Balances table
-  const balanceRows = Object.entries(balances).map(([id, b]) => {
-    const roommate = roommates.find(r => r.id === id);
-    const paid = b?.paid ?? 0;
-    const owes = b?.owes ?? 0;
+  const balanceRows = roommates.map((roommate) => {
+    const balance = balances[roommate.id] || { paid: 0, share: 0, owesTo: null };
+    const paid = balance.paid || 0;
+    const share = balance.share || 0;
+    const net = paid - share;
 
     return [
-      roommate?.name || "Unknown",
+      roommate.name,
       `CHF ${paid.toFixed(2)}`,
-      `CHF ${owes.toFixed(2)}`,
-      `CHF ${(paid - owes).toFixed(2)}`
+      `CHF ${share.toFixed(2)}`,
+      net > 0 ? `+ CHF ${net.toFixed(2)}` : net < 0 ? `- CHF ${Math.abs(net).toFixed(2)}` : "Settled",
     ];
   });
 
   autoTable(doc, {
-    head: [["Roommate", "Paid", "Owes", "Net"]],
+    head: [["Roommate", "Paid", "Contribution", "Net"]],
     body: balanceRows,
     startY: doc.lastAutoTable.finalY + 15,
     styles: { fontSize: 10 },
     headStyles: { fillColor: [16, 185, 129] }, // Tailwind green-500
   });
+
+  // Totals section
+  const totalsStartY = doc.lastAutoTable.finalY + 15;
+  doc.setFontSize(12);
+  doc.text("Totals", 14, totalsStartY);
+
+  const totalCombined = items.reduce((sum, item) => sum + item.currentPrice, 0);
+  doc.setFontSize(10);
+  doc.text(`Combined receipts: CHF ${totalCombined.toFixed(2)}`, 14, totalsStartY + 8);
+
+  // Object.entries(ticketTotals).forEach(([sourceFile, total], idx) => {
+  //   const parsedTotal = parseFloat(total);
+  //   const display = isNaN(parsedTotal) ? total : parsedTotal.toFixed(2);
+  //   doc.text(`${sourceFile}: CHF ${display}`, 14, totalsStartY + 16 + idx * 8);
+  // });
 
   return doc;
 }
