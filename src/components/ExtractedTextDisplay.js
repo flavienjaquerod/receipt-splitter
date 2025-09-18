@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Users, UserPlus, Trash2, Calculator, Edit2, Check, X, FileText, Eye, EyeOff } from 'lucide-react';
 import { exportReceiptPdf } from '../lib/exportPdf';
+import { COLOR_PAIRS } from '../lib/colors';
+import { useDarkMode } from '../contexts/darkModeContext';
 
 export default function ExtractedTextDisplay({ lines, isLoading, progress, showTranslated }) {
+  const { isDarkMode } = useDarkMode();
   const [roommates, setRoommates] = useState([
-    { id: 1, name: 'Person 1', color: '#3B82F6' },
-    { id: 2, name: 'Person 2', color: '#EF4444' }
+    { id: 1, name: "Person 1", ...COLOR_PAIRS[0] },
+    { id: 2, name: "Person 2", ...COLOR_PAIRS[3] }
   ]);
   const [items, setItems] = useState([]);
   const [newRoommateName, setNewRoommateName] = useState('');
@@ -119,17 +122,18 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
 
   const addRoommate = () => {
     if (newRoommateName.trim()) {
-      const colors = ['#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4'];
+      const color = COLOR_PAIRS[roommates.length % COLOR_PAIRS.length];
       const newRoommate = {
         id: Date.now(),
         name: newRoommateName.trim(),
-        color: colors[roommates.length % colors.length]
+        ...color
       };
       setRoommates([...roommates, newRoommate]);
-      setNewRoommateName('');
+      setNewRoommateName("");
       setIsAddingRoommate(false);
     }
   };
+
 
   const updateRoommateName = (id, newName) => {
     if (newName.trim()) {
@@ -370,7 +374,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
             <div key={roommate.id} className="flex items-center space-x-2 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
               <div 
                 className="w-4 h-4 rounded-full flex-shrink-0" 
-                style={{ backgroundColor: roommate.color }}
+                style={{ backgroundColor: isDarkMode ? roommate.dark : roommate.light }}
               ></div>
               {editingRoommate === roommate.id ? (
                 <div className="flex items-center space-x-1 flex-1 min-w-0">
@@ -599,7 +603,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                               : 'text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700'
                           }`}
                           style={{
-                            backgroundColor: item.assignedTo.includes(roommate.id) ? roommate.color : undefined
+                            backgroundColor: item.assignedTo.includes(roommate.id) ? (isDarkMode ? roommate.dark : roommate.light) : undefined
                           }}
                         >
                           {roommate.name}
@@ -619,7 +623,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                               : 'text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
                           }`}
                           style={{
-                            backgroundColor: item.assignedTo.includes(roommate.id) ? roommate.color : undefined
+                            backgroundColor: item.assignedTo.includes(roommate.id) ? (isDarkMode ? roommate.dark : roommate.light) : undefined
                           }}
                         >
                           {roommate.name}
@@ -726,7 +730,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                           : 'text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
                       }`}
                       style={{
-                        backgroundColor: item.assignedTo.includes(roommate.id) ? roommate.color : undefined
+                        backgroundColor: item.assignedTo.includes(roommate.id) ? (isDarkMode ? roommate.dark : roommate.light) : undefined
                       }}
                     >
                       {roommate.name}
@@ -803,7 +807,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
             return (
               <div key={roommate.id} className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50">
                 <div className="flex items-center space-x-2 mb-2">
-                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: roommate.color }} />
+                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: isDarkMode ? roommate.dark : roommate.light }} />
                   <span className="font-medium text-gray-900 dark:text-white">{roommate.name}</span>
                 </div>
 
