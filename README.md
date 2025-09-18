@@ -82,3 +82,11 @@ A smart web app that uses OCR to automatically split receipt costs between roomm
 - **English** - Translation target language
 - **Auto-detection** - Automatically detects and translates text (To be implemented)
 - **Confidence scores** - Shows OCR accuracy for each detected item
+
+## To do list
+- [ ] Fix colors in payment display 
+- [ ] Implement language selection (both target and original)
+- [ ] Implement backend for history and login
+- [ ] Fix bug of progress bar > 100% when uploading a new receipt
+- [ ] Integrate twint 
+- [ ] Add better form sharing  
