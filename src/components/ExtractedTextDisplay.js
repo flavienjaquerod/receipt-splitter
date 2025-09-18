@@ -803,6 +803,9 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
           {roommates.map((roommate) => {
             const balance = balances[roommate.id] || { paid: 0, share: 0, owesTo: null };
             const net = (balance.paid || 0) - (balance.share || 0);
+            const targetRoommate = roommates.find(
+              (r) => String(r.id) === String(balance.owesTo)
+            );
 
             return (
               <div key={roommate.id} className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50">
@@ -817,7 +820,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                   <div className="text-gray-700 dark:text-gray-300">
                     Contribution: <span className="font-medium">CHF {(balance.share || 0).toFixed(2)}</span>
                     {balance.owesTo && balance.share > 0 && String(roommate.id) !== String(whoPaid) && (
-                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">to <strong style={{ color: roommates.find(r => String(r.id) === String(balance.owesTo))?.color }}>{roommates.find(r => String(r.id) === String(balance.owesTo))?.name || 'Unknown'}</strong></span>
+                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">to <strong style={{ color: isDarkMode ? targetRoommate?.dark : targetRoommate?.light }}>{targetRoommate?.name || 'Unknown'}</strong></span>
                     )}
                   </div>
 
@@ -832,12 +835,21 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                       <ul className="ml-4">
                         {Object.entries(balances)
                           .filter(([id, b]) => b.owesTo && String(b.owesTo) === String(roommate.id))
-                          .map(([id, b]) => (
-                            <li key={id}>
-                              {roommates.find(r => String(r.id) === String(id))?.name || 'Unknown'}: CHF {b.share.toFixed(2)}
-                            </li>
-                          ))
-                        }
+                          .map(([id, b]) => {
+                            const debtor = roommates.find(r => String(r.id) === String(id));
+                            return (
+                              <li key={id}>
+                                <strong
+                                  style={{
+                                    color: isDarkMode ? debtor?.dark : debtor?.light
+                                  }}
+                                >
+                                  {debtor?.name || 'Unknown'}
+                                </strong>
+                                : CHF {b.share.toFixed(2)}
+                              </li>
+                            );
+                          })}
                       </ul>
                     </div>
                   )}
