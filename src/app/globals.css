@@ -16,12 +16,90 @@
   }
 }
 
+
+html, body {
+  transition: background-color 0.7s ease, color 0.7s ease;
+}
+
+/* Smooth transition for all elements with background, text, and border colors */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 700ms;
+}
+
+/* Smooth transition for the main body and html */
+html {
+  transition: background-color 700ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  transition: background-color 700ms cubic-bezier(0.4, 0, 0.2, 1), color 700ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Specific smooth transitions for commonly used elements */
+.bg-gradient-to-br,
+.bg-gradient-to-r,
+.bg-gradient-to-l,
+.bg-gradient-to-t,
+.bg-gradient-to-b,
+.bg-gradient-to-tr,
+.bg-gradient-to-tl,
+.bg-gradient-to-bl {
+  transition: background-image 700ms cubic-bezier(0.4, 0, 0.2, 1), background-color 700ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Enhanced dark mode transition classes - add these to your components */
+.transition-colors-slow {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 700ms;
+}
+
+.transition-all-slow {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 700ms;
+}
+
+@keyframes sunrise {
+  0% { background-position: 0% 100%; }
+  50% { background-position: 50% 50%; }
+  100% { background-position: 100% 0%; }
+}
+
+@keyframes sunset {
+  0% { background-position: 100% 0%; }
+  50% { background-position: 50% 50%; }
+  100% { background-position: 0% 100%; }
+}
+
+/* Smooth shadow transitions */
+.shadow-transition {
+  transition: box-shadow 700ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Text color transitions */
+.text-transition {
+  transition: color 700ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Border transitions */
+.border-transition {
+  transition: border-color 700ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Special animation for elements that should have a wave effect during transition */
+@keyframes colorWave {
+  0% { filter: hue-rotate(0deg) brightness(1); }
+  25% { filter: hue-rotate(45deg) brightness(1.1); }
+  50% { filter: hue-rotate(90deg) brightness(1.2); }
+  75% { filter: hue-rotate(45deg) brightness(1.1); }
+  100% { filter: hue-rotate(0deg) brightness(1); }
+}
+
+.color-wave-animation {
+  animation: colorWave 1.5s ease-in-out;
 }
