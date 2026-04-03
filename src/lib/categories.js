@@ -7,35 +7,40 @@ export const CATEGORIES = {
   other: { label: 'Other', light: '#6B7280', dark: '#9CA3AF' },
 };
 
-async function classifySingle(text) {
-  try {
-    // Ask our own secure backend instead of Hugging Face directly
-    const res = await fetch('/api/classify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-
-    if (!res.ok) return 'other';
-    
-    const data = await res.json();
-    return data.category || 'other';
-  } catch (err) {
-    console.error("Failed to fetch category from backend:", err);
-    return 'other';
-  }
-}
-
+/**
+ * Detect categories for a list of items in a single request to the backend.
+ * The backend classifies all items concurrently and caches results.
+ *
+ * @param {Array<{id: string, name: string}>} items
+ * @returns {Promise<Object>} map of item id → category key
+ */
 export async function detectCategoriesBatch(items) {
   if (!items || items.length === 0) return {};
 
-  const results = await Promise.allSettled(
-    items.map(item => classifySingle(item.name))
-  );
+  try {
+    const texts = items.map(item => item.name);
 
-  const categories = {};
-  results.forEach((result, i) => {
-    categories[items[i].id] = result.status === 'fulfilled' ? result.value : 'other';
-  });
-  return categories;
+    const res = await fetch('/api/classify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texts }),
+    });
+
+    if (!res.ok) throw new Error(`API ${res.status}`);
+
+    const data = await res.json();
+    const categoryByText = data.categories || {};
+
+    const categories = {};
+    items.forEach(item => {
+      categories[item.id] = categoryByText[item.name] || 'other';
+    });
+    return categories;
+
+  } catch (err) {
+    console.error('Category detection failed:', err);
+    const fallback = {};
+    items.forEach(item => { fallback[item.id] = 'other'; });
+    return fallback;
+  }
 }

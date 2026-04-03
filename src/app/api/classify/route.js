@@ -17,22 +17,28 @@ const LABEL_TO_CATEGORY = {
   'personal care or hygiene product': 'personal_care',
 };
 
-export async function POST(request) {
-  try {
-    const { text } = await request.json();
-    const token = process.env.HF_TOKEN;
+// Simple in-memory cache — persists across requests within the same server process.
+const cache = new Map();
 
-    if (!token) {
-      console.error("HF_TOKEN is missing from environment variables.");
-      return NextResponse.json({ category: 'other' }, { status: 500 });
-    }
+async function classifyOne(text, headers) {
+  const key = text.toLowerCase().trim();
+  if (cache.has(key)) return cache.get(key);
 
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    };
+  let response = await fetch(MODEL_URL, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      inputs: text,
+      parameters: { candidate_labels: CANDIDATE_LABELS },
+    }),
+  });
 
-    let response = await fetch(MODEL_URL, {
+  // Handle HF cold start (503)
+  if (response.status === 503) {
+    const data = await response.json().catch(() => ({}));
+    const wait = Math.min((data.estimated_time || 10) * 1000, 15000);
+    await new Promise(r => setTimeout(r, wait));
+    response = await fetch(MODEL_URL, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -40,35 +46,53 @@ export async function POST(request) {
         parameters: { candidate_labels: CANDIDATE_LABELS },
       }),
     });
+  }
 
-    // Handle HF Cold Start (503)
-    if (response.status === 503) {
-      const data = await response.json().catch(() => ({}));
-      const wait = Math.min((data.estimated_time || 10) * 1000, 15000);
-      await new Promise(r => setTimeout(r, wait));
-      
-      response = await fetch(MODEL_URL, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          inputs: text,
-          parameters: { candidate_labels: CANDIDATE_LABELS },
-        }),
+  if (!response.ok) throw new Error(`HF API ${response.status}`);
+
+  const data = await response.json();
+  const topLabel = Array.isArray(data) ? data[0]?.label : data.labels?.[0];
+  const category = LABEL_TO_CATEGORY[topLabel] || 'other';
+
+  cache.set(key, category);
+  return category;
+}
+
+export async function POST(request) {
+  const token = process.env.HF_TOKEN;
+  if (!token) {
+    console.error('HF_TOKEN is missing from environment variables.');
+    return NextResponse.json({ error: 'Missing HF_TOKEN' }, { status: 500 });
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  };
+
+  try {
+    const body = await request.json();
+
+    // Batch mode: { texts: string[] } → { categories: { [text]: category } }
+    if (Array.isArray(body.texts)) {
+      const results = await Promise.allSettled(
+        body.texts.map(text => classifyOne(text, headers))
+      );
+
+      const categories = {};
+      body.texts.forEach((text, i) => {
+        categories[text] = results[i].status === 'fulfilled' ? results[i].value : 'other';
       });
+
+      return NextResponse.json({ categories });
     }
 
-    if (!response.ok) throw new Error(`HF API Error: ${response.status}`);
-
-    const data = await response.json();
-    
-    // Safely parse the array format
-    const topLabel = Array.isArray(data) ? data[0]?.label : data.labels?.[0];
-    const category = LABEL_TO_CATEGORY[topLabel] || 'other';
-
+    // Single-item mode: { text: string } → { category: string }
+    const category = await classifyOne(body.text, headers);
     return NextResponse.json({ category });
 
   } catch (error) {
-    console.error('Classification routing error:', error);
-    return NextResponse.json({ category: 'other' });
+    console.error('Classification error:', error);
+    return NextResponse.json({ category: 'other', categories: {} });
   }
 }
