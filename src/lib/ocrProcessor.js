@@ -80,13 +80,13 @@ export class OCRProcessor {
     }
   }
 
-  async processAndTranslate(file, onProgress = null) {
+  async processAndTranslate(file, onProgress = null, sourceLang = 'de', targetLang = 'en') {
     const result = await this.processImage(file, onProgress);
     if (!result.success) return result;
 
     const translatedLines = await Promise.all(
       result.lines.map(async (line) => {
-        const { translated, detectedLang } = await this.translateLine(line.text);
+        const { translated, detectedLang } = await this.translateLine(line.text, sourceLang, targetLang);
         console.log("Result of translation = ", translated);
         return {
           ...line,
@@ -142,9 +142,9 @@ export class OCRProcessor {
     }
   }
 
-  async translateLine(text) {
+  async translateLine(text, sourceLang = 'de', targetLang = 'en') {
     try {
-      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=de|en`;
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLang}|${targetLang}`;
       const response = await fetch(url);
       const data = await response.json();
 

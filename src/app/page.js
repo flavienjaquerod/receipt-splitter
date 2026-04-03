@@ -13,8 +13,20 @@ function HomeContent() {
     const [ocrProgress, setOcrProgress] = useState(0)
     const [isProcessing, setIsProcessing] = useState(false)
     const [showTranslated, setShowTranslated] = useState(false)
+    const [sourceLang, setSourceLang] = useState('de')
+    const [targetLang, setTargetLang] = useState('en')
     const [currentProcessingFile, setCurrentProcessingFile] = useState('')
     const [processedFileCount, setProcessedFileCount] = useState(0)
+
+    const LANGUAGES = [
+        { code: 'de', name: 'German' },
+        { code: 'en', name: 'English' },
+        { code: 'fr', name: 'French' },
+        { code: 'it', name: 'Italian' },
+        { code: 'es', name: 'Spanish' },
+        { code: 'nl', name: 'Dutch' },
+        { code: 'pt', name: 'Portuguese' },
+    ]
 
     const handleFiles = (selectedFiles) => {
         const fileArray = Array.from(selectedFiles).filter(file =>
@@ -57,11 +69,13 @@ function HomeContent() {
                     file,
                     (progress) => {
                         // Formula: ((Completed files * 100) + current progress) / Total files
-                        // By using fileIndexForProgress, we ensure this value is locked to 0, 1, 2, etc., 
+                        // By using fileIndexForProgress, we ensure this value is locked to 0, 1, 2, etc.,
                         // and cannot read the value after it has been incremented.
                         const overallPercentage = ((fileIndexForProgress * 100) + progress) / imageFiles.length;
                         setOcrProgress(Math.round(overallPercentage));
-                    }
+                    },
+                    sourceLang,
+                    targetLang
                 )
 
                 if (result.success) {
@@ -356,21 +370,43 @@ function HomeContent() {
                 {/* Extracted Text Display */}
                 {(isProcessing || extractedLines.length > 0) && (
                     <div className="mt-6 sm:mt-8">
-                        {/* Toggle Button */}
-                        <div className="mb-3 sm:mb-4 flex justify-center sm:justify-end items-center space-x-3">
-                            <span className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">
-                                {showTranslated ? "Showing English" : "Showing Original"}
-                            </span>
-                            <button
-                                onClick={() => setShowTranslated(prev => !prev)}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showTranslated ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600"
-                                    }`}
-                            >
-                                <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showTranslated ? "translate-x-6" : "translate-x-1"
-                                        }`}
-                                />
-                            </button>
+                        {/* Language Controls */}
+                        <div className="mb-3 sm:mb-4 flex flex-wrap justify-center sm:justify-end items-center gap-3">
+                            {/* Language selectors */}
+                            <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
+                                <span className="whitespace-nowrap">Translate:</span>
+                                <select
+                                    value={sourceLang}
+                                    onChange={e => setSourceLang(e.target.value)}
+                                    className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+                                </select>
+                                <span>→</span>
+                                <select
+                                    value={targetLang}
+                                    onChange={e => setTargetLang(e.target.value)}
+                                    className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+                                </select>
+                            </div>
+                            {/* Show translated toggle */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                                    {showTranslated
+                                        ? `Showing ${LANGUAGES.find(l => l.code === targetLang)?.name || 'Translated'}`
+                                        : `Showing Original`}
+                                </span>
+                                <button
+                                    onClick={() => setShowTranslated(prev => !prev)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showTranslated ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600"}`}
+                                >
+                                    <span
+                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showTranslated ? "translate-x-6" : "translate-x-1"}`}
+                                    />
+                                </button>
+                            </div>
                         </div>
                         <ExtractedTextDisplay
                             lines={extractedLines}

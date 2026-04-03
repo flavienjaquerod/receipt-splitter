@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Users, UserPlus, Trash2, Calculator, Edit2, Check, X, FileText, Eye, EyeOff } from 'lucide-react';
 import { exportReceiptPdf } from '../lib/exportPdf';
 import { COLOR_PAIRS } from '../lib/colors';
 import { useDarkMode } from '../contexts/darkModeContext';
+import { CATEGORIES, detectCategory } from '../lib/categories';
 
 export default function ExtractedTextDisplay({ lines, isLoading, progress, showTranslated }) {
   const { isDarkMode } = useDarkMode();
@@ -24,10 +25,16 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
 
+  // Always-current reference to roommates to avoid stale closure in the parse effect
+  const roommatesRef = useRef(roommates);
+  useEffect(() => { roommatesRef.current = roommates; }, [roommates]);
+
   // Get unique source files
   const sourceFiles = [...new Set(lines.map(line => line.sourceFile).filter(Boolean))];
 
-  // Parse OCR lines into items when lines change
+  // Parse OCR lines into items when lines change.
+  // showTranslated is intentionally NOT in deps — name display is handled at render time
+  // using item.name (original) vs item.translatedName (translated).
   useEffect(() => {
     if (!lines || lines.length === 0) return;
 
@@ -45,21 +52,22 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
     // Process each source file separately
     Object.entries(linesBySource).forEach(([sourceFile, sourceLines]) => {
       sourceLines.forEach((line, index) => {
-        const text = showTranslated && line.translatedText ? line.translatedText : line.text;
+        const text = line.text;
+        const translatedText = line.translatedText || line.text;
 
-        // detect "Total CHF X" and skip it
-        const totalMatch = text.match(/total\s*CHF\s*([\d.,]+)/i);
+        // detect "Total CHF X" and skip it (check both original and translated)
+        const totalMatch = text.match(/total\s*CHF\s*([\d.,]+)/i) || translatedText.match(/total\s*CHF\s*([\d.,]+)/i);
         if (totalMatch) {
           detectedTotals[sourceFile] = parseFloat(totalMatch[1].replace(",", "."));
           return;
         }
 
-        // skip other non items lines
+        // skip other non-item lines
         if (/total/i.test(text) || /sparen/i.test(text) || /rundung/i.test(text) || /artikelbezeichnung/i.test(text) || /rounding/i.test(text)) {
           return;
         }
 
-        // parse regular items
+        // parse item from original text
         const pricePattern = /(\d+[.,]\d+)/g;
         const prices = text.match(pricePattern);
         if (prices && prices.length > 0) {
@@ -68,16 +76,32 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
           let itemName = text.substring(0, firstPriceIndex).trim();
           itemName = itemName.replace(/\s*\|\s*$/, "").trim();
 
+          // extract translated name from translatedText
+          let translatedName = itemName;
+          if (line.translatedText) {
+            const transPrices = translatedText.match(pricePattern);
+            if (transPrices && transPrices.length > 0) {
+              const transFirstIdx = translatedText.search(/\d+[.,]\d+/);
+              let tName = translatedText.substring(0, transFirstIdx).trim().replace(/\s*\|\s*$/, "").trim();
+              if (tName) translatedName = tName;
+            } else {
+              const tName = translatedText.trim();
+              if (tName) translatedName = tName;
+            }
+          }
+
           if (itemName && !isNaN(totalPrice)) {
             parsedItems.push({
               id: `${sourceFile}-${index}`,
               name: itemName,
+              translatedName: translatedName,
               originalPrice: totalPrice,
               currentPrice: totalPrice,
-              assignedTo: [],
+              assignedTo: roommatesRef.current.map(r => r.id),
               confidence: line.confidence,
               sourceFile: sourceFile,
-              sourceIndex: line.sourceIndex || 0
+              sourceIndex: line.sourceIndex || 0,
+              category: detectCategory(itemName, translatedName),
             });
           }
         }
@@ -86,7 +110,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
 
     setItems(parsedItems);
     setTicketTotals(detectedTotals);
-  }, [lines, showTranslated]);
+  }, [lines]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // updates roommates when added, pay all items by default
   useEffect(() => {
@@ -534,6 +558,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Item</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Source</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Price</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Assigned To</th>
@@ -541,11 +566,23 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
-              {visibleItems.map((item) => (
+              {visibleItems.map((item) => {
+                const displayName = showTranslated && item.translatedName ? item.translatedName : item.name;
+                const cat = CATEGORIES[item.category] || CATEGORIES.other;
+                const catColor = isDarkMode ? cat.dark : cat.light;
+                return (
                 <tr key={item.id} className="dark:bg-gray-800">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">{displayName}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">Confidence: {item.confidence}%</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span
+                      className="px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap"
+                      style={{ color: catColor, backgroundColor: catColor + '22', border: `1px solid ${catColor}44` }}
+                    >
+                      {cat.label}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-xs text-gray-600 dark:text-gray-300 truncate max-w-32">{item.sourceFile}</div>
@@ -638,21 +675,33 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                     </div>
                   </td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
         </div>
 
         {/* Mobile/Tablet Card View */}
         <div className="lg:hidden divide-y divide-gray-100 dark:divide-gray-600">
-          {visibleItems.map((item) => (
+          {visibleItems.map((item) => {
+            const displayName = showTranslated && item.translatedName ? item.translatedName : item.name;
+            const cat = CATEGORIES[item.category] || CATEGORIES.other;
+            const catColor = isDarkMode ? cat.dark : cat.light;
+            return (
             <div key={item.id} className="p-4 space-y-3">
               {/* Item Header */}
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-gray-900 dark:text-white text-sm leading-tight pr-2">
-                    {item.name}
-                  </h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-medium text-gray-900 dark:text-white text-sm leading-tight">
+                      {displayName}
+                    </h4>
+                    <span
+                      className="px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap"
+                      style={{ color: catColor, backgroundColor: catColor + '22', border: `1px solid ${catColor}44` }}
+                    >
+                      {cat.label}
+                    </span>
+                  </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {item.sourceFile} • Confidence: {item.confidence}%
                   </p>
@@ -756,7 +805,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                 </div>
               )}
             </div>
-          ))}
+          );})}
         </div>
       </div>
 
@@ -839,11 +888,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                             const debtor = roommates.find(r => String(r.id) === String(id));
                             return (
                               <li key={id}>
-                                <strong
-                                  style={{
-                                    color: isDarkMode ? debtor?.dark : debtor?.light
-                                  }}
-                                >
+                                <strong style={{ color: isDarkMode ? debtor?.dark : debtor?.light }}>
                                   {debtor?.name || 'Unknown'}
                                 </strong>
                                 : CHF {b.share.toFixed(2)}
