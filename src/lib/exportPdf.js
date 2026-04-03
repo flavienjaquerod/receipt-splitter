@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-export function exportReceiptPdf(items, roommates, balances, ticketTotals = {}, receiptName = "Receipt") {
+export function exportReceiptPdf(items, roommates, balances, receiptName = "Receipt") {
   const doc = new jsPDF();
 
   // Title
@@ -15,6 +15,7 @@ export function exportReceiptPdf(items, roommates, balances, ticketTotals = {}, 
   // Items table
   const itemRows = items.map(item => [
     item.name,
+    item.category || "other",
     `CHF ${item.currentPrice.toFixed(2)}`,
     item.assignedTo
       .map(id => roommates.find(r => String(r.id) === String(id))?.name || "Unknown")
@@ -22,7 +23,7 @@ export function exportReceiptPdf(items, roommates, balances, ticketTotals = {}, 
   ]);
 
   autoTable(doc, {
-    head: [["Item", "Price", "Assigned To"]],
+    head: [["Item", "Category", "Price", "Assigned To"]],
     body: itemRows,
     startY: 45,
     styles: { fontSize: 10 },
@@ -60,6 +61,26 @@ export function exportReceiptPdf(items, roommates, balances, ticketTotals = {}, 
   const totalCombined = items.reduce((sum, item) => sum + item.currentPrice, 0);
   doc.setFontSize(10);
   doc.text(`Combined receipts: CHF ${totalCombined.toFixed(2)}`, 14, totalsStartY + 8);
+
+  const categoryTotals = items.reduce((acc, item) => {
+    const category = item.category || "other";
+    acc[category] = (acc[category] || 0) + item.currentPrice;
+    return acc;
+  }, {});
+
+  const categoryRows = Object.entries(categoryTotals)
+    .sort((a, b) => b[1] - a[1])
+    .map(([category, amount]) => [category, `CHF ${amount.toFixed(2)}`]);
+
+  if (categoryRows.length > 0) {
+    autoTable(doc, {
+      head: [["Category", "Spend"]],
+      body: categoryRows,
+      startY: totalsStartY + 14,
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [99, 102, 241] },
+    });
+  }
 
   // Object.entries(ticketTotals).forEach(([sourceFile, total], idx) => {
   //   const parsedTotal = parseFloat(total);

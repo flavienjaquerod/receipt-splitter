@@ -3,6 +3,7 @@ import { Users, UserPlus, Trash2, Calculator, Edit2, Check, X, FileText, Eye, Ey
 import { exportReceiptPdf } from '../lib/exportPdf';
 import { COLOR_PAIRS } from '../lib/colors';
 import { useDarkMode } from '../contexts/darkModeContext';
+import { buildSpendingInsights, parseReceiptLines } from '../lib/receiptIntelligence';
 
 export default function ExtractedTextDisplay({ lines, isLoading, progress, showTranslated }) {
   const { isDarkMode } = useDarkMode();
@@ -31,71 +32,34 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
   useEffect(() => {
     if (!lines || lines.length === 0) return;
 
-    const parsedItems = [];
-    let detectedTotals = {};
+    const parsed = parseReceiptLines(lines, { showTranslated });
+    const itemsWithDefaultAssignments = parsed.items.map((item) => ({
+      ...item,
+      assignedTo: roommates.map((roommate) => roommate.id),
+    }));
 
-    // Group lines by source file
-    const linesBySource = lines.reduce((acc, line) => {
-      const source = line.sourceFile || 'unknown';
-      if (!acc[source]) acc[source] = [];
-      acc[source].push(line);
-      return acc;
-    }, {});
-
-    // Process each source file separately
-    Object.entries(linesBySource).forEach(([sourceFile, sourceLines]) => {
-      sourceLines.forEach((line, index) => {
-        const text = showTranslated && line.translatedText ? line.translatedText : line.text;
-
-        // detect "Total CHF X" and skip it
-        const totalMatch = text.match(/total\s*CHF\s*([\d.,]+)/i);
-        if (totalMatch) {
-          detectedTotals[sourceFile] = parseFloat(totalMatch[1].replace(",", "."));
-          return;
-        }
-
-        // skip other non items lines
-        if (/total/i.test(text) || /sparen/i.test(text) || /rundung/i.test(text) || /artikelbezeichnung/i.test(text) || /rounding/i.test(text)) {
-          return;
-        }
-
-        // parse regular items
-        const pricePattern = /(\d+[.,]\d+)/g;
-        const prices = text.match(pricePattern);
-        if (prices && prices.length > 0) {
-          const totalPrice = parseFloat(prices[prices.length - 1].replace(",", "."));
-          const firstPriceIndex = text.search(/\d+[.,]\d+/);
-          let itemName = text.substring(0, firstPriceIndex).trim();
-          itemName = itemName.replace(/\s*\|\s*$/, "").trim();
-
-          if (itemName && !isNaN(totalPrice)) {
-            parsedItems.push({
-              id: `${sourceFile}-${index}`,
-              name: itemName,
-              originalPrice: totalPrice,
-              currentPrice: totalPrice,
-              assignedTo: [],
-              confidence: line.confidence,
-              sourceFile: sourceFile,
-              sourceIndex: line.sourceIndex || 0
-            });
-          }
-        }
-      });
-    });
-
-    setItems(parsedItems);
-    setTicketTotals(detectedTotals);
+    setItems(itemsWithDefaultAssignments);
+    setTicketTotals(parsed.ticketTotals);
   }, [lines, showTranslated]);
 
   // updates roommates when added, pay all items by default
   useEffect(() => {
-    setItems(items.map(item => {
-      return {
-        ...item,
-        assignedTo: roommates.map(r => r.id)
-      };
-    }));
+    setItems((prevItems) =>
+      prevItems.map((item) => {
+        const stillValid = (item.assignedTo || []).filter((rid) =>
+          roommates.some((roommate) => roommate.id === rid)
+        );
+
+        if (stillValid.length > 0) {
+          return { ...item, assignedTo: stillValid };
+        }
+
+        return {
+          ...item,
+          assignedTo: roommates.map((r) => r.id),
+        };
+      })
+    );
   }, [roommates]);
 
   // updates error message based on ticket price compared to ocr result
@@ -253,7 +217,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
   const balances = calculateBalances();
 
   function handleExport() {
-    const doc = exportReceiptPdf(items, roommates, balances, "My Grocery Receipt");
+    const doc = exportReceiptPdf(visibleItems, roommates, balances, "My Grocery Receipt");
 
     // Save as PDF
     doc.save("receipt-summary.pdf");
@@ -273,6 +237,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
 
   // Get visible items (not from hidden sources)
   const visibleItems = items.filter(item => !hiddenSources.has(item.sourceFile));
+  const insights = buildSpendingInsights(visibleItems);
 
   if (isLoading) {
     return (
@@ -534,6 +499,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Item</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Source</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Price</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Assigned To</th>
@@ -545,7 +511,15 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                 <tr key={item.id} className="dark:bg-gray-800">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</div>
+                    {item.normalizedName && item.normalizedName !== item.name && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Normalized: {item.normalizedName}</div>
+                    )}
                     <div className="text-xs text-gray-500 dark:text-gray-400">Confidence: {item.confidence}%</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                      {item.category || 'other'}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-xs text-gray-600 dark:text-gray-300 truncate max-w-32">{item.sourceFile}</div>
@@ -654,7 +628,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                     {item.name}
                   </h4>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {item.sourceFile} • Confidence: {item.confidence}%
+                    {item.sourceFile} • {item.category || 'other'} • Confidence: {item.confidence}%
                   </p>
                 </div>
                 
@@ -787,6 +761,60 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
           </svg>
           Export & Share
         </button>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100 dark:border-gray-700">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Spending Insights</h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800">
+            <div className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Total Spend</div>
+            <div className="text-xl font-bold text-blue-900 dark:text-blue-100 mt-1">CHF {insights.totalSpent.toFixed(2)}</div>
+          </div>
+          <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-100 dark:border-green-800">
+            <div className="text-xs uppercase tracking-wide text-green-700 dark:text-green-300">Top Category</div>
+            <div className="text-xl font-bold text-green-900 dark:text-green-100 mt-1">
+              {insights.topCategories[0] ? `${insights.topCategories[0].category} (CHF ${insights.topCategories[0].amount.toFixed(2)})` : 'n/a'}
+            </div>
+          </div>
+          <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-100 dark:border-amber-800">
+            <div className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300">Most Frequent Item</div>
+            <div className="text-xl font-bold text-amber-900 dark:text-amber-100 mt-1">
+              {insights.frequentProducts[0] ? `${insights.frequentProducts[0].name} (${insights.frequentProducts[0].count}x)` : 'n/a'}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Top Products</h4>
+            <div className="space-y-1">
+              {insights.topProducts.length === 0 && (
+                <div className="text-sm text-gray-500 dark:text-gray-400">No product insights yet.</div>
+              )}
+              {insights.topProducts.map((product) => (
+                <div key={`${product.name}-${product.amount}`} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
+                  <span className="truncate pr-2">{product.name}</span>
+                  <span className="font-medium whitespace-nowrap">CHF {product.amount.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Potential Savings</h4>
+            <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+              {insights.opportunities.length === 0 && (
+                <div className="text-gray-500 dark:text-gray-400">No strong savings signals yet. Add more receipts for trend detection.</div>
+              )}
+              {insights.opportunities.map((insight, idx) => (
+                <div key={idx} className="p-2 rounded bg-gray-50 dark:bg-gray-700/60">
+                  {insight}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Balance Summary */}
