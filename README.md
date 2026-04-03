@@ -83,6 +83,136 @@ A smart web app that uses OCR to automatically split receipt costs between roomm
 - **Auto-detection** - Automatically detects and translates text (To be implemented)
 - **Confidence scores** - Shows OCR accuracy for each detected item
 
+## PaddleOCR Setup (Receipt Focus)
+
+This project now includes a server-side PaddleOCR pipeline for printed receipts.
+
+### 1. Create a Python environment
+
+```bash
+python -m venv .venv
+```
+
+Windows PowerShell:
+
+```bash
+.\.venv\Scripts\Activate.ps1
+```
+
+Linux/macOS:
+
+```bash
+source .venv/bin/activate
+```
+
+### 2. Install OCR dependencies
+
+```bash
+pip install -r scripts/requirements-paddle-ocr.txt
+```
+
+### 3. Run the app
+
+```bash
+npm run dev
+```
+
+The OCR flow will try PaddleOCR first through `POST /api/ocr/paddle`, and fallback to Tesseract if Paddle is unavailable.
+
+### 4. Optional environment variables
+
+- `PADDLE_OCR_PYTHON`: custom Python executable path
+- `PADDLE_OCR_MODEL_LANG`: Paddle model language (`latin` default)
+
+## Dataset Evaluation (Item + Price Pairs)
+
+Use `scripts/evaluate_receipt_pairs.py` to score extraction quality.
+
+Dataset format:
+
+```json
+{
+   "samples": [
+      {
+         "image": "receipts/sample1.jpg",
+         "items": [
+            { "name": "Coffee", "price": 3.5 },
+            { "name": "Bread", "price": 2.9 }
+         ]
+      }
+   ]
+}
+```
+
+Run evaluation:
+
+```bash
+python scripts/evaluate_receipt_pairs.py --dataset path/to/dataset.json --lang latin
+```
+
+Main metric is pair-level F1 (correct item name + correct price), which is the right metric for receipt splitting.
+
+### Advanced Receipt OCR Pipeline (Local)
+
+The Paddle pipeline in this project is now split into modular stages under `scripts/receipt_ocr/`:
+
+- `preprocessing.py`: receipt boundary detection, perspective crop, denoise, adaptive threshold, deskew, scaling
+- `structuring.py`: row grouping, right-price-column detection, item-price reconstruction, multiline item merge
+- `postprocess.py`: OCR text cleanup, non-item filtering, product normalization, optional lexicon matching
+- `visualize.py`: debug overlays for tokens, rows, price column, and final extracted items
+
+Main entrypoint remains `scripts/paddle_receipt_ocr.py` and can run standalone.
+
+### Debug intermediate OCR stages
+
+Generate debug overlays for one image:
+
+```bash
+python scripts/paddle_receipt_ocr.py receipts/sample1.jpg --lang latin --debug-dir .ocr-debug/sample1
+```
+
+This produces stage outputs (original, cropped, enhanced, binary, token boxes, row+item overlays).
+
+### Product normalization lexicon (optional)
+
+You can pass a local JSON file containing canonical product names:
+
+```json
+[
+   "Coca Cola 1L",
+   "Espresso",
+   "Whole Milk"
+]
+```
+
+Run with:
+
+```bash
+python scripts/paddle_receipt_ocr.py receipts/sample1.jpg --product-lexicon data/products_lexicon.json
+```
+
+### Suggested public datasets (downloadable, local)
+
+- SROIE (receipt OCR + key information extraction)
+- CORD (receipt-level structured extraction)
+- RVL-CDIP (document classification; useful only for broad document-type filtering, not item-price extraction)
+
+For item-level extraction quality, prioritize SROIE/CORD plus a custom dataset from your own stores.
+
+### Evaluation metrics to track
+
+- Pair-level Precision/Recall/F1: correct item name + correct price
+- Key-value accuracy: matched item-price pairs over expected pairs
+- Line accuracy: expected lines matched to predicted lines
+- Word accuracy: expected words recovered from OCR lines
+- Price MAE: average absolute error on matched prices
+
+Example with debug output for each sample:
+
+```bash
+python scripts/evaluate_receipt_pairs.py --dataset path/to/dataset.json --lang latin --debug-root .ocr-debug/eval-run-001
+```
+
 ## To do list
 - [ ] Fix colors in payment display 
 - [ ] Implement language selection (both target and original)

@@ -36,3 +36,11 @@ next-env.d.ts
 
 # receipts collection
 receipts/
+datasets/
+
+# Python OCR artifacts
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ocr-debug/

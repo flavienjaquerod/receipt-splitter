@@ -1,6 +1,10 @@
 import { franc } from 'franc';
 
 const DEFAULT_OCR_OPTIONS = {
+  provider: 'paddle',
+  paddleEndpoint: '/api/ocr/paddle',
+  paddleModelLanguage: 'latin',
+  fallbackToTesseract: true,
   languages: 'eng+deu+fra+ita',
   confidenceThreshold: 25,
   preprocessImage: true,
@@ -21,7 +25,6 @@ export class OCRProcessor {
   constructor(options = {}) {
     this.worker = null;
     this.workerLanguages = null;
-    this.translationCache = new Map();
     this.options = { ...DEFAULT_OCR_OPTIONS, ...options };
   }
 
@@ -54,6 +57,78 @@ export class OCRProcessor {
   }
 
   async processImage(file, onProgress = null) {
+    let paddleError = null;
+
+    if (this.options.provider === 'paddle' || this.options.provider === 'auto') {
+      try {
+        return await this.processImageWithPaddle(file, onProgress);
+      } catch (error) {
+        paddleError = error;
+        console.warn('Paddle OCR unavailable, fallback strategy engaged:', error.message);
+        if (!this.options.fallbackToTesseract) {
+          return {
+            rawText: '',
+            lines: [],
+            success: false,
+            error: error.message,
+          };
+        }
+      }
+    }
+
+    return this.processImageWithTesseract(file, onProgress, paddleError);
+  }
+
+  async processImageWithPaddle(file, onProgress = null) {
+    if (onProgress) onProgress(10);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('modelLang', this.options.paddleModelLanguage);
+
+    const response = await fetch(this.options.paddleEndpoint, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || !payload?.success) {
+      throw new Error(payload?.error || payload?.details || `Paddle OCR request failed (${response.status})`);
+    }
+
+    const lines = this.normalizePaddleLines(payload.lines || []);
+    const rawText = payload.rawText || lines.map((line) => line.text).join('\n');
+    const detectedLanguage = payload.detectedLanguage || this.detectLanguage(rawText);
+
+    if (onProgress) onProgress(100);
+
+    return {
+      rawText,
+      lines,
+      success: true,
+      detectedLanguage,
+      receiptItems: Array.isArray(payload.receiptItems) ? payload.receiptItems : [],
+      meta: payload.meta || {},
+      engine: 'paddleocr',
+    };
+  }
+
+  normalizePaddleLines(lines) {
+    if (!Array.isArray(lines)) return [];
+
+    return lines
+      .filter((line) => line && typeof line.text === 'string' && line.text.trim())
+      .map((line, index) => ({
+        id: line.id ?? index,
+        text: line.text.trim(),
+        confidence: Math.round(Number(line.confidence || 0)),
+        bbox: line.bbox || null,
+      }))
+      .filter((line) => line.confidence >= this.options.confidenceThreshold);
+  }
+
+  async processImageWithTesseract(file, onProgress = null, paddleError = null) {
     if (!this.worker) {
       await this.initialize(onProgress);
     }
@@ -89,6 +164,8 @@ export class OCRProcessor {
         rawText: text,
         lines: processedLines,
         success: true,
+        detectedLanguage: this.detectLanguage(text),
+        engine: 'tesseract',
       };
     } catch (error) {
       console.error('OCR processing error:', error);
@@ -96,7 +173,9 @@ export class OCRProcessor {
         rawText: '',
         lines: [],
         success: false,
-        error: error.message,
+        error: paddleError
+          ? `Paddle failed: ${paddleError.message}. Tesseract failed: ${error.message}`
+          : error.message,
       };
     } finally {
       if (imageUrl) {
@@ -106,24 +185,8 @@ export class OCRProcessor {
   }
 
   async processAndTranslate(file, onProgress = null) {
-    const result = await this.processImage(file, onProgress);
-    if (!result.success) return result;
-
-    const translatedLines = await Promise.all(
-      result.lines.map(async (line) => {
-        const { translated, detectedLang } = await this.translateLine(line.text);
-        return {
-          ...line,
-          translatedText: translated,
-          detectedLanguage: detectedLang,
-        };
-      })
-    );
-
-    return {
-      ...result,
-      lines: translatedLines,
-    };
+    // Kept for backward compatibility with existing callers.
+    return this.processImage(file, onProgress);
   }
 
   async preprocessImage(file) {
@@ -227,88 +290,6 @@ export class OCRProcessor {
     }
 
     return ISO3_TO_ISO2[iso3] || 'unknown';
-  }
-
-  async translateLine(text) {
-    const normalizedText = (text || '').trim();
-    if (!normalizedText) {
-      return { translated: '', detectedLang: 'unknown' };
-    }
-
-    const cacheKey = normalizedText.toLowerCase();
-    if (this.translationCache.has(cacheKey)) {
-      return this.translationCache.get(cacheKey);
-    }
-
-    const detectedLang = this.detectLanguage(normalizedText);
-    const sourceLang = detectedLang === 'unknown' ? 'de' : detectedLang;
-
-    if (sourceLang === 'en') {
-      const passthrough = { translated: normalizedText, detectedLang: sourceLang };
-      this.translationCache.set(cacheKey, passthrough);
-      return passthrough;
-    }
-
-    const translators = [this.translateWithMyMemory, this.translateWithLibreTranslate];
-
-    for (const translator of translators) {
-      try {
-        const translated = await translator.call(this, normalizedText, sourceLang, 'en');
-        const payload = { translated, detectedLang: sourceLang };
-        this.translationCache.set(cacheKey, payload);
-        return payload;
-      } catch (error) {
-        console.warn('Translation provider failed:', error.message);
-      }
-    }
-
-    const fallback = { translated: normalizedText, detectedLang: sourceLang };
-    this.translationCache.set(cacheKey, fallback);
-    return fallback;
-  }
-
-  async translateWithMyMemory(text, source = 'de', target = 'en') {
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${source}|${target}`;
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(`MyMemory HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    const translated = data?.responseData?.translatedText?.trim();
-
-    if (!translated) {
-      throw new Error('MyMemory returned empty translation');
-    }
-
-    return translated;
-  }
-
-  async translateWithLibreTranslate(text, source = 'auto', target = 'en') {
-    const response = await fetch('https://libretranslate.com/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        q: text,
-        source,
-        target,
-        format: 'text',
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`LibreTranslate HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    const translated = data?.translatedText?.trim();
-
-    if (!translated) {
-      throw new Error('LibreTranslate returned empty translation');
-    }
-
-    return translated;
   }
 
   async cleanup() {
