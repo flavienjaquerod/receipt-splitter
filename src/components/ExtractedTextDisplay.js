@@ -6,12 +6,12 @@ import { useDarkMode } from '../contexts/darkModeContext';
 import { CATEGORIES, detectCategoriesBatch } from '../lib/categories';
 import { createClient } from '../lib/supabase/client';
 
-export default function ExtractedTextDisplay({ lines, isLoading, progress, showTranslated }) {
+export default function ExtractedTextDisplay({ lines, isLoading, progress, showTranslated, userName }) {
   const { isDarkMode } = useDarkMode();
   const [roommates, setRoommates] = useState([
     { id: 1, name: "Person 1", ...COLOR_PAIRS[0] },
-    { id: 2, name: "Person 2", ...COLOR_PAIRS[3] }
   ]);
+  const [myRoommateId, setMyRoommateId] = useState(1); // which roommate slot is "me"
   const [items, setItems] = useState([]);
   const [newRoommateName, setNewRoommateName] = useState('');
   const [isAddingRoommate, setIsAddingRoommate] = useState(false);
@@ -27,6 +27,16 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
   const [hiddenSources, setHiddenSources] = useState(new Set());
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
+
+  // When a logged-in user's profile name arrives, auto-populate the "me" roommate slot
+  useEffect(() => {
+    if (!userName) return;
+    setRoommates(prev => prev.map(r =>
+      r.id === myRoommateId && (r.name === 'Person 1' || r.name === 'Person 2')
+        ? { ...r, name: userName }
+        : r
+    ));
+  }, [userName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Always-current reference to roommates to avoid stale closure in the parse effect
   const roommatesRef = useRef(roommates);
@@ -192,7 +202,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
   };
 
   const removeRoommate = (id) => {
-    if (roommates.length <= 2) return;
+    if (roommates.length <= 1) return;
     setRoommates(roommates.filter(r => r.id !== id));
     // Remove assignments for this roommate
     setItems(items.map(item => ({
@@ -212,6 +222,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
       assignedTo: roommates.map(r => r.id), // default: all roommates
       confidence: 100,
       sourceFile: "Manual entry",
+      category: null, // triggers async detection
     };
 
     setItems([...items, newItem]);
@@ -312,6 +323,13 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
 
     setSaveStatus('saving');
     try {
+      const myItems = items.filter(item => item.assignedTo.includes(myRoommateId));
+      if (myItems.length === 0) {
+        setSaveStatus('error');
+        setTimeout(() => setSaveStatus(null), 3000);
+        return;
+      }
+
       // Derive a receipt name from the source files
       const sources = [...new Set(items.map(i => i.sourceFile).filter(Boolean))];
       const receiptName = sources.length > 0
@@ -326,17 +344,20 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
         .single();
       if (receiptErr) throw receiptErr;
 
-      // Insert items
-      const itemRows = items.map(item => ({
-        receipt_id: receipt.id,
-        name: item.name,
-        translated_name: item.translatedName || null,
-        original_price: item.originalPrice,
-        current_price: item.currentPrice,
-        category: item.category || 'other',
-        confidence: item.confidence || null,
-        source_file: item.sourceFile || null,
-      }));
+      // Only save items assigned to "me", at my share of the cost
+      const itemRows = myItems.map(item => {
+        const myShare = item.currentPrice / Math.max(item.assignedTo.length, 1);
+        return {
+          receipt_id: receipt.id,
+          name: item.name,
+          translated_name: item.translatedName || null,
+          original_price: item.originalPrice,
+          current_price: parseFloat(myShare.toFixed(2)),
+          category: item.category || 'other',
+          confidence: item.confidence || null,
+          source_file: item.sourceFile || null,
+        };
+      });
 
       const { data: savedItems, error: itemsErr } = await supabase
         .from('items')
@@ -503,6 +524,17 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                 <>
                   <span className="font-medium text-gray-800 dark:text-white flex-1 truncate">{roommate.name}</span>
                   <div className="flex items-center space-x-1 flex-shrink-0">
+                    <button
+                      onClick={() => setMyRoommateId(roommate.id)}
+                      title="Mark as me"
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
+                        myRoommateId === roommate.id
+                          ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                          : 'text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400'
+                      }`}
+                    >
+                      Me
+                    </button>
                     {whoPaid === roommate.id && (
                       <span className="text-xs bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 px-2 py-1 rounded-full whitespace-nowrap">
                         Paid
@@ -517,7 +549,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                     >
                       <Edit2 className="w-3 h-3" />
                     </button>
-                    {roommates.length > 2 && (
+                    {roommates.length > 1 && (
                       <button
                         onClick={() => removeRoommate(roommate.id)}
                         className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
@@ -672,7 +704,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                           ✕
                         </button>
                       </div>
-                    ) : item.category === null ? (
+                    ) : item.category == null ? (
                       <span className="px-2 py-0.5 text-xs rounded-full font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700">
                         ···
                       </span>
@@ -827,7 +859,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                           ✕
                         </button>
                       </div>
-                    ) : item.category === null ? (
+                    ) : item.category == null ? (
                       <span className="px-2 py-0.5 text-xs rounded-full font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700">
                         ···
                       </span>

@@ -1,14 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ocrProcessor } from '../lib/ocrProcessor'
 import ExtractedTextDisplay from '../components/ExtractedTextDisplay'
 import { useDarkMode } from '../contexts/darkModeContext'
 import { useAuth } from '../contexts/authContext'
+import { createClient } from '../lib/supabase/client'
 import DarkModeToggle from '../components/darkModeToggle'
 
 function HomeContent() {
     const { user, signOut } = useAuth()
+    const [userName, setUserName] = useState('')
     const [uploadStatus, setUploadStatus] = useState(null)
     const [files, setFiles] = useState([])
     const [extractedLines, setExtractedLines] = useState([])
@@ -20,6 +22,13 @@ function HomeContent() {
     const [targetLang, setTargetLang] = useState('en')
     const [currentProcessingFile, setCurrentProcessingFile] = useState('')
     const [processedFileCount, setProcessedFileCount] = useState(0)
+
+    useEffect(() => {
+        if (!user) return
+        const supabase = createClient()
+        supabase.from('profiles').select('name').eq('id', user.id).single()
+            .then(({ data }) => { if (data?.name) setUserName(data.name) })
+    }, [user])
 
     const LANGUAGES = [
         { code: 'de', name: 'German' },
@@ -453,6 +462,7 @@ function HomeContent() {
                         isLoading={isProcessing}
                         progress={ocrProgress}
                         showTranslated={showTranslated}
+                        userName={userName}
                     />
                 </div>
                 )}
@@ -497,7 +507,7 @@ function HomeContent() {
 
             {/* Footer */}
             <footer className="mt-16 sm:mt-20 py-6 sm:py-8 text-center text-gray-500 dark:text-gray-400">
-                <p className="text-xs sm:text-sm px-4">&copy; 2024 Receipt Splitter. Made for roommates who hate math.</p>
+                <p className="text-xs sm:text-sm px-4">&copy; 2026 Receipt Splitter. Made to help your accounting.</p>
             </footer>
         </div>
     )
