@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import { ocrProcessor } from '../lib/ocrProcessor'
 import ExtractedTextDisplay from '../components/ExtractedTextDisplay'
-import { DarkModeProvider, useDarkMode } from '../contexts/darkModeContext'
+import { useDarkMode } from '../contexts/darkModeContext'
+import { useAuth } from '../contexts/authContext'
 import DarkModeToggle from '../components/darkModeToggle'
 
 function HomeContent() {
+    const { user, signOut } = useAuth()
     const [uploadStatus, setUploadStatus] = useState(null)
     const [files, setFiles] = useState([])
     const [extractedLines, setExtractedLines] = useState([])
@@ -150,11 +152,31 @@ function HomeContent() {
                                 Receipt Splitter
                             </h1>
                         </div>
-                        <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-3">
                             <DarkModeToggle />
-                            <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                                v1.1
-                            </div>
+                            {user ? (
+                                <div className="flex items-center gap-2">
+                                    <a
+                                        href="/dashboard"
+                                        className="text-xs px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+                                    >
+                                        Dashboard
+                                    </a>
+                                    <button
+                                        onClick={signOut}
+                                        className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                    >
+                                        Sign out
+                                    </button>
+                                </div>
+                            ) : (
+                                <a
+                                    href="/login"
+                                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                >
+                                    Sign in
+                                </a>
+                            )}
                         </div>
                     </div>
                 </nav>
@@ -482,9 +504,5 @@ function HomeContent() {
 }
 
 export default function Home() {
-    return (
-        <DarkModeProvider>
-            <HomeContent />
-        </DarkModeProvider>
-    )
+    return <HomeContent />
 }
