@@ -3,7 +3,7 @@ import { Users, UserPlus, Trash2, Calculator, Edit2, Check, X, FileText, Eye, Ey
 import { exportReceiptPdf } from '../lib/exportPdf';
 import { COLOR_PAIRS } from '../lib/colors';
 import { useDarkMode } from '../contexts/darkModeContext';
-import { CATEGORIES, detectCategory } from '../lib/categories';
+import { CATEGORIES, detectCategoriesBatch } from '../lib/categories';
 
 export default function ExtractedTextDisplay({ lines, isLoading, progress, showTranslated }) {
   const { isDarkMode } = useDarkMode();
@@ -16,6 +16,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
   const [isAddingRoommate, setIsAddingRoommate] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [editPrice, setEditPrice] = useState('');
+  const [editingCategory, setEditingCategory] = useState(null); // item id being category-edited
   const [whoPaid, setwhoPaid] = useState(1);
   const [editingRoommate, setEditingRoommate] = useState(null);
   const [editingName, setEditingName] = useState('');
@@ -101,7 +102,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
               confidence: line.confidence,
               sourceFile: sourceFile,
               sourceIndex: line.sourceIndex || 0,
-              category: detectCategory(itemName, translatedName),
+              category: null, // detected asynchronously below
             });
           }
         }
@@ -111,6 +112,25 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
     setItems(parsedItems);
     setTicketTotals(detectedTotals);
   }, [lines]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Async category detection via HF Inference API whenever new items arrive
+  useEffect(() => {
+    const uncategorized = items.filter(item => item.category === null);
+    if (uncategorized.length === 0) return;
+
+    const toClassify = uncategorized.map(item => ({
+      id: item.id,
+      name: item.translatedName || item.name,
+    }));
+
+    detectCategoriesBatch(toClassify).then(categories => {
+      setItems(prev => prev.map(item =>
+        categories[item.id] !== undefined
+          ? { ...item, category: categories[item.id] }
+          : item
+      ));
+    });
+  }, [items.map(i => i.id + ':' + i.category).join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // updates roommates when added, pay all items by default
   useEffect(() => {
@@ -209,6 +229,13 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
       }
       return item;
     }));
+  };
+
+  const updateItemCategory = (itemId, category) => {
+    setItems(items.map(item =>
+      item.id === itemId ? { ...item, category } : item
+    ));
+    setEditingCategory(null);
   };
 
   const updateItemPrice = (itemId, newPrice) => {
@@ -319,10 +346,6 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
         </div>
       </div>
     );
-  }
-
-  if (!lines || lines.length === 0) {
-    return null;
   }
 
   return (
@@ -561,28 +584,65 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Source</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Price</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Assigned To</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Split</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider min-w-[180px]">Assigned To</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider min-w-[220px]">Split</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
               {visibleItems.map((item) => {
                 const displayName = showTranslated && item.translatedName ? item.translatedName : item.name;
-                const cat = CATEGORIES[item.category] || CATEGORIES.other;
-                const catColor = isDarkMode ? cat.dark : cat.light;
+                const cat = (item.category && item.category !== 'unset') ? (CATEGORIES[item.category] || CATEGORIES.other) : null;
+                const catColor = cat ? (isDarkMode ? cat.dark : cat.light) : '#9CA3AF';
                 return (
                 <tr key={item.id} className="dark:bg-gray-800">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900 dark:text-white">{displayName}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">Confidence: {item.confidence}%</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className="px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap"
-                      style={{ color: catColor, backgroundColor: catColor + '22', border: `1px solid ${catColor}44` }}
-                    >
-                      {cat.label}
-                    </span>
+                  <td className="px-6 py-4">
+                    {editingCategory === item.id ? (
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(CATEGORIES).map(([key, c]) => {
+                          const color = isDarkMode ? c.dark : c.light;
+                          return (
+                            <button
+                              key={key}
+                              onClick={() => updateItemCategory(item.id, key)}
+                              className="px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap hover:opacity-80 transition-opacity"
+                              style={{ color, backgroundColor: color + '22', border: `1px solid ${color}44` }}
+                            >
+                              {c.label}
+                            </button>
+                          );
+                        })}
+                        <button
+                          onClick={() => setEditingCategory(null)}
+                          className="px-2 py-0.5 text-xs rounded-full font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : item.category === null ? (
+                      <span className="px-2 py-0.5 text-xs rounded-full font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700">
+                        ···
+                      </span>
+                    ) : item.category === 'unset' ? (
+                      <button
+                        onClick={() => setEditingCategory(item.id)}
+                        className="px-2 py-0.5 text-xs rounded-full font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
+                        style={{ border: '1px dashed #9CA3AF' }}
+                      >
+                        ?
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setEditingCategory(item.id)}
+                        className="px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap hover:opacity-80 transition-opacity"
+                        style={{ color: catColor, backgroundColor: catColor + '22', border: `1px solid ${catColor}44` }}
+                      >
+                        {cat.label}
+                      </button>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-xs text-gray-600 dark:text-gray-300 truncate max-w-32">{item.sourceFile}</div>
@@ -629,12 +689,12 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
+                  <td className="px-4 py-4 text-left align-top">
+                    <div className="flex flex-wrap gap-1.5">
                       {roommates.map(roommate => (
                         <span
                           key={roommate.id}
-                          className={`px-2 py-1 text-xs rounded-full ${
+                          className={`px-2.5 py-1 text-xs rounded-full font-medium whitespace-nowrap ${
                             item.assignedTo.includes(roommate.id)
                               ? 'text-white'
                               : 'text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700'
@@ -648,13 +708,13 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                       ))}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
+                  <td className="px-4 py-4 text-left align-top">
+                    <div className="flex flex-wrap gap-1.5">
                       {roommates.map(roommate => (
                         <button
                           key={roommate.id}
                           onClick={() => toggleAssignment(item.id, roommate.id)}
-                          className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                          className={`px-2.5 py-1 text-xs rounded-full border font-medium whitespace-nowrap transition-colors ${
                             item.assignedTo.includes(roommate.id)
                               ? 'text-white border-transparent'
                               : 'text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
@@ -668,7 +728,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                       ))}
                       <button
                         onClick={() => toggleAllAssignments(item.id)}
-                        className="px-3 py-1 text-xs rounded-full border border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                        className="px-2.5 py-1 text-xs rounded-full border border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-medium whitespace-nowrap transition-colors"
                       >
                         All
                       </button>
@@ -684,8 +744,8 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
         <div className="lg:hidden divide-y divide-gray-100 dark:divide-gray-600">
           {visibleItems.map((item) => {
             const displayName = showTranslated && item.translatedName ? item.translatedName : item.name;
-            const cat = CATEGORIES[item.category] || CATEGORIES.other;
-            const catColor = isDarkMode ? cat.dark : cat.light;
+            const cat = (item.category && item.category !== 'unset') ? (CATEGORIES[item.category] || CATEGORIES.other) : null;
+            const catColor = cat ? (isDarkMode ? cat.dark : cat.light) : '#9CA3AF';
             return (
             <div key={item.id} className="p-4 space-y-3">
               {/* Item Header */}
@@ -695,12 +755,49 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
                     <h4 className="font-medium text-gray-900 dark:text-white text-sm leading-tight">
                       {displayName}
                     </h4>
-                    <span
-                      className="px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap"
-                      style={{ color: catColor, backgroundColor: catColor + '22', border: `1px solid ${catColor}44` }}
-                    >
-                      {cat.label}
-                    </span>
+                    {editingCategory === item.id ? (
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(CATEGORIES).map(([key, c]) => {
+                          const color = isDarkMode ? c.dark : c.light;
+                          return (
+                            <button
+                              key={key}
+                              onClick={() => updateItemCategory(item.id, key)}
+                              className="px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap hover:opacity-80"
+                              style={{ color, backgroundColor: color + '22', border: `1px solid ${color}44` }}
+                            >
+                              {c.label}
+                            </button>
+                          );
+                        })}
+                        <button
+                          onClick={() => setEditingCategory(null)}
+                          className="px-2 py-0.5 text-xs rounded-full font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : item.category === null ? (
+                      <span className="px-2 py-0.5 text-xs rounded-full font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700">
+                        ···
+                      </span>
+                    ) : item.category === 'unset' ? (
+                      <button
+                        onClick={() => setEditingCategory(item.id)}
+                        className="px-2 py-0.5 text-xs rounded-full font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700"
+                        style={{ border: '1px dashed #9CA3AF' }}
+                      >
+                        ?
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setEditingCategory(item.id)}
+                        className="px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap hover:opacity-80"
+                        style={{ color: catColor, backgroundColor: catColor + '22', border: `1px solid ${catColor}44` }}
+                      >
+                        {cat.label}
+                      </button>
+                    )}
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {item.sourceFile} • Confidence: {item.confidence}%
@@ -815,7 +912,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
         </div>
       )}
 
-      <div className="flex justify-end mb-6">
+      {items.length > 0 && <div className="flex justify-end mb-6">
         <button
           onClick={handleExport}
           className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-medium rounded-lg shadow-md hover:from-blue-600 hover:to-purple-700 transition-all"
@@ -836,9 +933,9 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
           </svg>
           Export & Share
         </button>
-      </div>
+      </div>}
 
-      {/* Balance Summary */}
+      {items.length > 0 && (
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100 dark:border-gray-700">
         <div className="flex items-center space-x-2 mb-4">
           <Calculator className="w-5 h-5 text-green-500 dark:text-green-400" />
@@ -926,6 +1023,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

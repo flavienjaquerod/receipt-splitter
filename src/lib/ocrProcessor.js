@@ -2,25 +2,26 @@
 export class OCRProcessor {
   constructor() {
     this.worker = null;
+    this.onProgress = null;
   }
 
-  async initialize(onProgress = null) {
+  async initialize() {
     if (this.worker) return;
 
     try {
       // Dynamic import to reduce initial bundle size
       const { createWorker } = await import('tesseract.js');
-      
+
+      // Use this.onProgress so the logger always calls the current file's callback
       this.worker = await createWorker('eng+deu', 1, {
         logger: (m) => {
           console.log('Tesseract log:', m);
-          if (onProgress && m.status === 'recognizing text') {
-            const progress = Math.round(m.progress * 100);
-            onProgress(progress);
+          if (this.onProgress && m.status === 'recognizing text') {
+            this.onProgress(Math.round(m.progress * 100));
           }
         }
       });
-      
+
       console.log('OCR Worker initialized');
     } catch (error) {
       console.error('Failed to initialize OCR worker:', error);
@@ -29,8 +30,9 @@ export class OCRProcessor {
   }
 
   async processImage(file, onProgress = null) {
+    this.onProgress = onProgress; // update per-file before recognize
     if (!this.worker) {
-      await this.initialize(onProgress);
+      await this.initialize();
     }
 
     try {

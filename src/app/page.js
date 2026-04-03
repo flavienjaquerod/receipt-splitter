@@ -13,6 +13,7 @@ function HomeContent() {
     const [ocrProgress, setOcrProgress] = useState(0)
     const [isProcessing, setIsProcessing] = useState(false)
     const [showTranslated, setShowTranslated] = useState(false)
+    const [showManualEntry, setShowManualEntry] = useState(false)
     const [sourceLang, setSourceLang] = useState('de')
     const [targetLang, setTargetLang] = useState('en')
     const [currentProcessingFile, setCurrentProcessingFile] = useState('')
@@ -367,11 +368,27 @@ function HomeContent() {
                     </div>
                 </div>
 
+                {/* Manual entry toggle — shown when no OCR results yet */}
+                {!isProcessing && extractedLines.length === 0 && (
+                    <div className="mt-4 flex justify-center">
+                        <button
+                            onClick={() => setShowManualEntry(prev => !prev)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 border border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 rounded-xl transition-colors"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                            {showManualEntry ? 'Hide manual entry' : 'Add items manually'}
+                        </button>
+                    </div>
+                )}
+
                 {/* Extracted Text Display */}
-                {(isProcessing || extractedLines.length > 0) && (
-                    <div className="mt-6 sm:mt-8">
-                        {/* Language Controls */}
-                        <div className="mb-3 sm:mb-4 flex flex-wrap justify-center sm:justify-end items-center gap-3">
+                {(isProcessing || extractedLines.length > 0 || showManualEntry) && (
+                <div className="mt-6 sm:mt-8">
+                    {/* Language Controls - only shown when there are OCR results */}
+                    {(isProcessing || extractedLines.length > 0) && (
+                    <div className="mb-3 sm:mb-4 flex flex-wrap justify-center sm:justify-end items-center gap-3">
                             {/* Language selectors */}
                             <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
                                 <span className="whitespace-nowrap">Translate:</span>
@@ -408,13 +425,14 @@ function HomeContent() {
                                 </button>
                             </div>
                         </div>
-                        <ExtractedTextDisplay
-                            lines={extractedLines}
-                            isLoading={isProcessing}
-                            progress={ocrProgress}
-                            showTranslated={showTranslated}
-                        />
-                    </div>
+                    )}
+                    <ExtractedTextDisplay
+                        lines={extractedLines}
+                        isLoading={isProcessing}
+                        progress={ocrProgress}
+                        showTranslated={showTranslated}
+                    />
+                </div>
                 )}
 
                 {/* Features Preview */}
