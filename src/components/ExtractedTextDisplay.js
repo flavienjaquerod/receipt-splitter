@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Users, UserPlus, Trash2, Calculator, Edit2, Check, X, FileText, Eye, EyeOff } from 'lucide-react';
+import { Users, UserPlus, Trash2, Calculator, Edit2, Check, X, FileText, Eye, EyeOff, Save } from 'lucide-react';
 import { exportReceiptPdf } from '../lib/exportPdf';
 import { COLOR_PAIRS } from '../lib/colors';
 import { useDarkMode } from '../contexts/darkModeContext';
 import { CATEGORIES, detectCategoriesBatch } from '../lib/categories';
+import { createClient } from '../lib/supabase/client';
 
 export default function ExtractedTextDisplay({ lines, isLoading, progress, showTranslated }) {
   const { isDarkMode } = useDarkMode();
@@ -17,6 +18,7 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
   const [editingItem, setEditingItem] = useState(null);
   const [editPrice, setEditPrice] = useState('');
   const [editingCategory, setEditingCategory] = useState(null); // item id being category-edited
+  const [saveStatus, setSaveStatus] = useState(null); // null | 'saving' | 'saved' | 'error'
   const [whoPaid, setwhoPaid] = useState(1);
   const [editingRoommate, setEditingRoommate] = useState(null);
   const [editingName, setEditingName] = useState('');
@@ -302,6 +304,54 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
   };
 
   const balances = calculateBalances();
+
+  async function handleSave() {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    setSaveStatus('saving');
+    try {
+      // Derive a receipt name from the source files
+      const sources = [...new Set(items.map(i => i.sourceFile).filter(Boolean))];
+      const receiptName = sources.length > 0
+        ? sources.join(', ')
+        : `Session ${new Date().toLocaleDateString()}`;
+
+      // Insert receipt
+      const { data: receipt, error: receiptErr } = await supabase
+        .from('receipts')
+        .insert({ user_id: user.id, name: receiptName })
+        .select()
+        .single();
+      if (receiptErr) throw receiptErr;
+
+      // Insert items
+      const itemRows = items.map(item => ({
+        receipt_id: receipt.id,
+        name: item.name,
+        translated_name: item.translatedName || null,
+        original_price: item.originalPrice,
+        current_price: item.currentPrice,
+        category: item.category || 'other',
+        confidence: item.confidence || null,
+        source_file: item.sourceFile || null,
+      }));
+
+      const { data: savedItems, error: itemsErr } = await supabase
+        .from('items')
+        .insert(itemRows)
+        .select();
+      if (itemsErr) throw itemsErr;
+
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus(null), 3000);
+    } catch (err) {
+      console.error('Save failed:', err);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus(null), 3000);
+    }
+  }
 
   function handleExport() {
     const doc = exportReceiptPdf(items, roommates, balances, "My Grocery Receipt");
@@ -912,28 +962,38 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
         </div>
       )}
 
-      {items.length > 0 && <div className="flex justify-end mb-6">
-        <button
-          onClick={handleExport}
-          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-medium rounded-lg shadow-md hover:from-blue-600 hover:to-purple-700 transition-all"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="w-4 h-4 mr-2"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+      {items.length > 0 && (
+        <div className="flex justify-end gap-3 mb-6">
+          <button
+            onClick={handleSave}
+            disabled={saveStatus === 'saving' || saveStatus === 'saved'}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg shadow-sm transition-all"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 4v16m8-8H4"
-            />
-          </svg>
-          Export & Share
-        </button>
-      </div>}
+            <Save className="w-4 h-4" />
+            {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved!' : saveStatus === 'error' ? 'Error — retry' : 'Save to account'}
+          </button>
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-medium rounded-lg shadow-md hover:from-blue-600 hover:to-purple-700 transition-all"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-4 h-4 mr-2"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Export & Share
+          </button>
+        </div>
+      )}
 
       {items.length > 0 && (
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100 dark:border-gray-700">
