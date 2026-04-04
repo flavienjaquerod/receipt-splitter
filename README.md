@@ -220,3 +220,4 @@ python scripts/evaluate_receipt_pairs.py --dataset path/to/dataset.json --lang l
 - [x] Fix bug of progress bar > 100% when uploading a new receipt
 - [ ] Integrate twint 
 - [ ] Add better form sharing  
+ - [ ] TODO: add google vision api as fallback, call from website to ocr
