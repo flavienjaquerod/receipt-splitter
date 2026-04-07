@@ -463,6 +463,7 @@ function HomeContent() {
                         progress={ocrProgress}
                         showTranslated={showTranslated}
                         userName={userName}
+                        files={files}
                     />
                 </div>
                 )}

@@ -6,7 +6,7 @@ import { useDarkMode } from '../contexts/darkModeContext';
 import { CATEGORIES, detectCategoriesBatch } from '../lib/categories';
 import { createClient } from '../lib/supabase/client';
 
-export default function ExtractedTextDisplay({ lines, isLoading, progress, showTranslated, userName }) {
+export default function ExtractedTextDisplay({ lines, isLoading, progress, showTranslated, userName, files = [] }) {
   const { isDarkMode } = useDarkMode();
   const [roommates, setRoommates] = useState([
     { id: 1, name: "Person 1", ...COLOR_PAIRS[0] },
@@ -364,6 +364,24 @@ export default function ExtractedTextDisplay({ lines, isLoading, progress, showT
         .insert(itemRows)
         .select();
       if (itemsErr) throw itemsErr;
+
+      // Upload image files to Supabase Storage and record paths
+      const imageFiles = files.filter(f => f.type.startsWith('image/'));
+      if (imageFiles.length > 0) {
+        await Promise.allSettled(imageFiles.map(async (file) => {
+          const ext = file.name.split('.').pop();
+          const storagePath = `${user.id}/${receipt.id}/${Date.now()}-${file.name}`;
+          const { error: uploadErr } = await supabase.storage
+            .from('receipts')
+            .upload(storagePath, file, { contentType: file.type });
+          if (uploadErr) { console.warn('Image upload failed:', uploadErr.message); return; }
+          await supabase.from('receipt_images').insert({
+            receipt_id: receipt.id,
+            storage_path: storagePath,
+            filename: file.name,
+          });
+        }));
+      }
 
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus(null), 3000);

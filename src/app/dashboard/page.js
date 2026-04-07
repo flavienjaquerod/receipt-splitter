@@ -12,7 +12,7 @@ import { useAuth } from '../../contexts/authContext';
 import { useDarkMode } from '../../contexts/darkModeContext';
 import { CATEGORIES } from '../../lib/categories';
 import DarkModeToggle from '../../components/darkModeToggle';
-import { FileText, Plus, LogOut, TrendingUp, Repeat, Check, X, Edit2, Trash2, ChevronLeft } from 'lucide-react';
+import { FileText, Plus, LogOut, TrendingUp, Repeat, Check, X, Edit2, Trash2, ChevronLeft, Image, ZoomIn } from 'lucide-react';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -48,7 +48,9 @@ export default function DashboardPage() {
   const [receipts, setReceipts]           = useState([]);
   const [items, setItems]                 = useState([]);
   const [recurring, setRecurring]         = useState([]);
+  const [receiptImages, setReceiptImages] = useState({}); // { receipt_id: [{ url, filename }] }
   const [loadingData, setLoadingData]     = useState(true);
+  const [lightbox, setLightbox]           = useState(null); // { url, filename }
 
   const [showAddRecurring, setShowAddRecurring] = useState(false);
   const [newRecurring, setNewRecurring]   = useState({ name: '', amount: '', category: 'other', frequency: 'monthly' });
@@ -66,17 +68,33 @@ export default function DashboardPage() {
   const fetchData = useCallback(async () => {
     if (!user) return;
     const supabase = createClient();
-    const [{ data: prof }, { data: r }, { data: i }, { data: rec }] = await Promise.all([
+    const [{ data: prof }, { data: r }, { data: i }, { data: rec }, { data: imgs }] = await Promise.all([
       supabase.from('profiles').select('name').eq('id', user.id).single(),
       supabase.from('receipts').select('*').order('created_at', { ascending: false }),
       supabase.from('items').select('*, receipts(created_at)').order('created_at', { ascending: false }),
       supabase.from('recurring_payments').select('*').order('created_at', { ascending: false }),
+      supabase.from('receipt_images').select('*').order('created_at', { ascending: true }),
     ]);
     setProfile(prof || { name: '' });
     setDraftName(prof?.name || '');
     setReceipts(r || []);
     setItems(i || []);
     setRecurring(rec || []);
+
+    // Generate signed URLs for all images (1 hour expiry)
+    if (imgs && imgs.length > 0) {
+      const paths = imgs.map(img => img.storage_path);
+      const { data: signed } = await supabase.storage.from('receipts').createSignedUrls(paths, 3600);
+      const byReceipt = {};
+      imgs.forEach((img, idx) => {
+        const url = signed?.[idx]?.signedUrl ?? null;
+        if (!url) return;
+        if (!byReceipt[img.receipt_id]) byReceipt[img.receipt_id] = [];
+        byReceipt[img.receipt_id].push({ url, filename: img.filename });
+      });
+      setReceiptImages(byReceipt);
+    }
+
     setLoadingData(false);
   }, [user]);
 
@@ -537,25 +555,70 @@ export default function DashboardPage() {
             {receipts.length > 0 && (
               <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
                 <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Recent receipts</h2>
-                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                <div className="space-y-4">
                   {receipts.slice(0, 10).map(receipt => {
                     const rItems = items.filter(i => i.receipt_id === receipt.id);
                     const total = rItems.reduce((s, i) => s + Number(i.current_price), 0);
+                    const images = receiptImages[receipt.id] || [];
                     return (
-                      <div key={receipt.id} className="flex items-center justify-between py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                            <FileText className="w-3.5 h-3.5 text-blue-500" />
+                      <div key={receipt.id} className="border border-gray-100 dark:border-gray-700 rounded-xl p-4">
+                        {/* Header row */}
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <FileText className="w-3.5 h-3.5 text-blue-500" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">{receipt.name}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{rItems.length} items · {new Date(receipt.created_at).toLocaleDateString()}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">{receipt.name}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{rItems.length} items · {new Date(receipt.created_at).toLocaleDateString()}</p>
-                          </div>
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">{fmt(total)}</span>
                         </div>
-                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{fmt(total)}</span>
+
+                        {/* Image thumbnails */}
+                        {images.length > 0 && (
+                          <div className="flex gap-2 flex-wrap mt-2">
+                            {images.map((img, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => setLightbox(img)}
+                                className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 hover:ring-2 hover:ring-blue-500 transition-all group flex-shrink-0"
+                              >
+                                <img src={img.url} alt={img.filename} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                  <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Lightbox */}
+            {lightbox && (
+              <div
+                className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+                onClick={() => setLightbox(null)}
+              >
+                <div className="relative max-w-3xl max-h-[90vh] w-full" onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => setLightbox(null)}
+                    className="absolute -top-10 right-0 text-white/70 hover:text-white transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                  <img
+                    src={lightbox.url}
+                    alt={lightbox.filename}
+                    className="w-full h-full object-contain rounded-xl"
+                  />
+                  <p className="text-center text-white/50 text-xs mt-3">{lightbox.filename}</p>
                 </div>
               </div>
             )}

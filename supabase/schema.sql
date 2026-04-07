@@ -18,6 +18,15 @@ create table if not exists receipts (
   created_at timestamptz default now()
 );
 
+-- Images attached to a receipt (stored in Supabase Storage)
+create table if not exists receipt_images (
+  id           uuid primary key default gen_random_uuid(),
+  receipt_id   uuid references receipts(id) on delete cascade not null,
+  storage_path text not null,   -- path inside the 'receipts' bucket
+  filename     text not null,
+  created_at   timestamptz default now()
+);
+
 -- Items (only the user's own share is stored)
 create table if not exists items (
   id              uuid primary key default gen_random_uuid(),
@@ -48,12 +57,20 @@ create table if not exists recurring_payments (
 
 alter table profiles           enable row level security;
 alter table receipts           enable row level security;
+alter table receipt_images     enable row level security;
 alter table items              enable row level security;
 alter table recurring_payments enable row level security;
 
 create policy "own profile"    on profiles           for all using (auth.uid() = id);
 create policy "own receipts"   on receipts           for all using (auth.uid() = user_id);
 create policy "own recurring"  on recurring_payments for all using (auth.uid() = user_id);
+create policy "own images"     on receipt_images for all using (
+  exists (
+    select 1 from receipts
+    where receipts.id = receipt_images.receipt_id
+      and receipts.user_id = auth.uid()
+  )
+);
 create policy "own items"      on items for all using (
   exists (
     select 1 from receipts
@@ -61,6 +78,22 @@ create policy "own items"      on items for all using (
       and receipts.user_id = auth.uid()
   )
 );
+
+-- ── Storage bucket ────────────────────────────────────────────────────────────
+-- Run this separately in the Supabase SQL editor:
+--
+-- insert into storage.buckets (id, name, public)
+-- values ('receipts', 'receipts', false)
+-- on conflict do nothing;
+--
+-- create policy "upload own receipts" on storage.objects
+--   for insert with check (bucket_id = 'receipts' and auth.uid()::text = (storage.foldername(name))[1]);
+--
+-- create policy "read own receipts" on storage.objects
+--   for select using (bucket_id = 'receipts' and auth.uid()::text = (storage.foldername(name))[1]);
+--
+-- create policy "delete own receipts" on storage.objects
+--   for delete using (bucket_id = 'receipts' and auth.uid()::text = (storage.foldername(name))[1]);
 
 -- ── Auto-create profile on signup ─────────────────────────────────────────────
 
