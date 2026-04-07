@@ -14,6 +14,7 @@ export const CATEGORIES = {
   health:        { label: 'Health',        light: '#84CC16', dark: '#A3E635' },
   entertainment: { label: 'Entertainment', light: '#A855F7', dark: '#C084FC' },
   clothing:      { label: 'Clothing',      light: '#F43F5E', dark: '#FB7185' },
+  work:          { label: 'Work',           light: '#0EA5E9', dark: '#38BDF8' },
   other:         { label: 'Other',         light: '#6B7280', dark: '#9CA3AF' },
 };
 
