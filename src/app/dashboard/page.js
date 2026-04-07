@@ -12,7 +12,7 @@ import { useAuth } from '../../contexts/authContext';
 import { useDarkMode } from '../../contexts/darkModeContext';
 import { CATEGORIES } from '../../lib/categories';
 import DarkModeToggle from '../../components/darkModeToggle';
-import { FileText, Plus, LogOut, TrendingUp, Repeat, Check, X, Edit2, Trash2, ChevronLeft, Image, ZoomIn } from 'lucide-react';
+import { FileText, Plus, LogOut, TrendingUp, Repeat, Check, X, Edit2, Trash2, ChevronLeft, ZoomIn, Target } from 'lucide-react';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -59,6 +59,12 @@ export default function DashboardPage() {
   const [enabledCategories, setEnabledCategories] = useState(null); // null = all enabled
   const [focusedCategory, setFocusedCategory]     = useState(null);
 
+  // Budgets
+  const [budgets, setBudgets]               = useState({}); // { category: amount }
+  const [editingBudget, setEditingBudget]   = useState(null); // category key being edited
+  const [draftBudget, setDraftBudget]       = useState('');
+  const [dismissedAlerts, setDismissedAlerts] = useState(new Set()); // dismissed this session
+
   // ── Auth guard ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!loading && !user) router.push('/login');
@@ -68,12 +74,13 @@ export default function DashboardPage() {
   const fetchData = useCallback(async () => {
     if (!user) return;
     const supabase = createClient();
-    const [{ data: prof }, { data: r }, { data: i }, { data: rec }, { data: imgs }] = await Promise.all([
+    const [{ data: prof }, { data: r }, { data: i }, { data: rec }, { data: imgs }, { data: bdg }] = await Promise.all([
       supabase.from('profiles').select('name').eq('id', user.id).single(),
       supabase.from('receipts').select('*').order('created_at', { ascending: false }),
       supabase.from('items').select('*, receipts(created_at)').order('created_at', { ascending: false }),
       supabase.from('recurring_payments').select('*').order('created_at', { ascending: false }),
       supabase.from('receipt_images').select('*').order('created_at', { ascending: true }),
+      supabase.from('budgets').select('*').eq('user_id', user.id),
     ]);
     setProfile(prof || { name: '' });
     setDraftName(prof?.name || '');
@@ -93,6 +100,13 @@ export default function DashboardPage() {
         byReceipt[img.receipt_id].push({ url, filename: img.filename });
       });
       setReceiptImages(byReceipt);
+    }
+
+    // Budgets: store as { category: amount }
+    if (bdg) {
+      const map = {};
+      bdg.forEach(b => { map[b.category] = Number(b.amount); });
+      setBudgets(map);
     }
 
     setLoadingData(false);
@@ -127,6 +141,26 @@ export default function DashboardPage() {
     setRecurring(prev => prev.filter(r => r.id !== id));
   };
 
+  // ── Budget CRUD ────────────────────────────────────────────────────────────
+  const saveBudget = async (category) => {
+    const amount = parseFloat(draftBudget);
+    if (isNaN(amount) || amount <= 0) { setEditingBudget(null); return; }
+    const supabase = createClient();
+    await supabase.from('budgets').upsert(
+      { user_id: user.id, category, amount, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,category' }
+    );
+    setBudgets(prev => ({ ...prev, [category]: amount }));
+    setEditingBudget(null);
+    setDraftBudget('');
+  };
+
+  const deleteBudget = async (category) => {
+    const supabase = createClient();
+    await supabase.from('budgets').delete().eq('user_id', user.id).eq('category', category);
+    setBudgets(prev => { const n = { ...prev }; delete n[category]; return n; });
+  };
+
   // ── Analytics ──────────────────────────────────────────────────────────────
 
   const thisMonthKey = currentMonthKey();
@@ -140,6 +174,21 @@ export default function DashboardPage() {
   const thisMonthTotal     = thisMonthOneTime + thisMonthRecurring;
   const totalSpent         = items.reduce((s, i) => s + Number(i.current_price), 0);
   const monthlyFixed       = recurring.filter(r => r.frequency === 'monthly').reduce((s, r) => s + Number(r.amount), 0);
+
+  // This month's spending per category (purchases + recurring)
+  const thisMonthByCategory = (() => {
+    const map = {};
+    thisMonthItems.forEach(item => {
+      const key = item.category || 'other';
+      map[key] = (map[key] || 0) + Number(item.current_price);
+    });
+    recurring.forEach(r => {
+      const key = r.category || 'other';
+      const monthly = r.frequency === 'monthly' ? Number(r.amount) : (new Date(r.start_date).getMonth() === new Date().getMonth() ? Number(r.amount) : 0);
+      if (monthly > 0) map[key] = (map[key] || 0) + monthly;
+    });
+    return map;
+  })();
 
   // ── Category data (purchases + recurring monthly equivalent) ──────────────
   const allCategoryData = (() => {
@@ -327,6 +376,44 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* ── Budget alerts banner ── */}
+            {(() => {
+              const alerts = Object.entries(budgets).filter(([cat, limit]) => {
+                const spent = thisMonthByCategory[cat] || 0;
+                return spent >= limit * 0.75;
+              }).map(([cat, limit]) => {
+                const spent = thisMonthByCategory[cat] || 0;
+                const over = spent > limit;
+                const pct = Math.round((spent / limit) * 100);
+                const color = over ? '#EF4444' : '#F97316';
+                const catLabel = CATEGORIES[cat]?.label ?? cat;
+                return { cat, spent, limit, over, pct, color, catLabel };
+              });
+              const visible = alerts.filter(a => !dismissedAlerts.has(a.cat));
+              if (visible.length === 0) return null;
+              return (
+                <div className="space-y-2">
+                  {visible.map(a => (
+                    <div key={a.cat} className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium"
+                      style={{ backgroundColor: a.color + '18', border: `1px solid ${a.color}44`, color: a.color }}>
+                      <Target className="w-4 h-4 flex-shrink-0" />
+                      <span className="flex-1">
+                        {a.over
+                          ? `${a.catLabel} budget exceeded — spent ${fmt(a.spent)} of ${fmt(a.limit)} limit (${a.pct}%)`
+                          : `${a.catLabel} budget at ${a.pct}% — ${fmt(a.limit - a.spent)} remaining this month`}
+                      </span>
+                      <button
+                        onClick={() => setDismissedAlerts(prev => new Set([...prev, a.cat]))}
+                        className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             {/* ── Category chart ── */}
             {allCategoryData.length > 0 && (
               <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
@@ -424,25 +511,50 @@ export default function DashboardPage() {
                         </ResponsiveContainer>
                       </div>
 
-                      {/* Legend — clickable */}
-                      <ul className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 content-start">
+                      {/* Legend — clickable, with budget bars */}
+                      <ul className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 content-start">
                         {allCategoryData.map(e => {
                           const isOn = enabled.has(e.key);
+                          const budget = budgets[e.key];
+                          const spent = thisMonthByCategory[e.key] || 0;
+                          const pct = budget ? Math.min((spent / budget) * 100, 100) : null;
+                          const over = budget && spent > budget;
+                          const warn = budget && pct >= 75 && !over;
+                          const barColor = over ? '#EF4444' : warn ? '#F97316' : e.color;
                           return (
-                            <li key={e.key} className="flex items-center justify-between gap-2">
-                              <button
-                                onClick={() => toggleCategory(e.key)}
-                                className={`flex items-center gap-2 text-sm min-w-0 transition-opacity ${isOn ? 'opacity-100' : 'opacity-35'}`}
-                              >
-                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} />
-                                <span className="truncate text-gray-700 dark:text-gray-300">{e.label}</span>
-                              </button>
-                              <button
-                                onClick={() => setFocusedCategory(e.key)}
-                                className={`text-xs font-medium whitespace-nowrap transition-opacity ${isOn ? 'opacity-100 text-gray-900 dark:text-white hover:underline' : 'opacity-35 text-gray-500 dark:text-gray-400 pointer-events-none'}`}
-                              >
-                                {fmt(e.total)}
-                              </button>
+                            <li key={e.key} className={`space-y-1 transition-opacity ${isOn ? 'opacity-100' : 'opacity-35'}`}>
+                              <div className="flex items-center justify-between gap-2">
+                                <button
+                                  onClick={() => toggleCategory(e.key)}
+                                  className="flex items-center gap-2 text-sm min-w-0"
+                                >
+                                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} />
+                                  <span className="truncate text-gray-700 dark:text-gray-300">{e.label}</span>
+                                </button>
+                                <button
+                                  onClick={() => isOn && setFocusedCategory(e.key)}
+                                  className={`text-xs font-medium whitespace-nowrap ${isOn ? 'text-gray-900 dark:text-white hover:underline' : 'text-gray-400 pointer-events-none'}`}
+                                >
+                                  {fmt(e.total)}
+                                </button>
+                              </div>
+                              {/* Budget progress bar */}
+                              {budget && (
+                                <div>
+                                  <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full transition-all duration-500"
+                                      style={{ width: `${pct}%`, backgroundColor: barColor }}
+                                    />
+                                  </div>
+                                  <div className="flex justify-between text-[10px] mt-0.5">
+                                    <span style={{ color: barColor }} className="font-medium">
+                                      {over ? `${fmt(spent - budget)} over` : `${fmt(spent)} of ${fmt(budget)}`}
+                                    </span>
+                                    <span className="text-gray-400 dark:text-gray-500">{Math.round(pct)}%</span>
+                                  </div>
+                                </div>
+                              )}
                             </li>
                           );
                         })}
@@ -485,6 +597,68 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
+
+            {/* ── Budget limits ── */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Target className="w-4 h-4 text-blue-500" />
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Monthly budget limits</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {Object.entries(CATEGORIES).map(([key, cat]) => {
+                  const color = isDarkMode ? cat.dark : cat.light;
+                  const budget = budgets[key];
+                  const spent = thisMonthByCategory[key] || 0;
+                  const isEditing = editingBudget === key;
+                  return (
+                    <div key={key} className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40">
+                      <span className="flex items-center gap-2 text-sm min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                        <span className="truncate text-gray-700 dark:text-gray-300">{cat.label}</span>
+                      </span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {isEditing ? (
+                          <>
+                            <input
+                              type="number"
+                              value={draftBudget}
+                              onChange={e => setDraftBudget(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') saveBudget(key); if (e.key === 'Escape') setEditingBudget(null); }}
+                              placeholder="CHF"
+                              className="w-20 px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              autoFocus
+                            />
+                            <button onClick={() => saveBudget(key)} className="text-green-600 dark:text-green-400 hover:opacity-80">
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => setEditingBudget(null)} className="text-gray-400 hover:opacity-80">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        ) : budget ? (
+                          <>
+                            <span className="text-xs font-medium text-gray-900 dark:text-white">{fmt(budget)}</span>
+                            <button onClick={() => { setEditingBudget(key); setDraftBudget(String(budget)); }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                            <button onClick={() => deleteBudget(key)} className="text-red-400 hover:text-red-600">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => { setEditingBudget(key); setDraftBudget(''); }}
+                            className="text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                          >
+                            + set limit
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* Recurring payments */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">

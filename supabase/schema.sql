@@ -95,6 +95,19 @@ create policy "own items"      on items for all using (
 -- create policy "delete own receipts" on storage.objects
 --   for delete using (bucket_id = 'receipts' and auth.uid()::text = (storage.foldername(name))[1]);
 
+-- Monthly budget caps per category
+create table if not exists budgets (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid references auth.users(id) on delete cascade not null,
+  category   text not null,
+  amount     numeric(10,2) not null,
+  updated_at timestamptz default now(),
+  unique(user_id, category)
+);
+
+alter table budgets enable row level security;
+create policy "own budgets" on budgets for all using (auth.uid() = user_id);
+
 -- ── Auto-create profile on signup ─────────────────────────────────────────────
 
 create or replace function handle_new_user()
