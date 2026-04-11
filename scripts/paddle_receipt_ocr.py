@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -48,6 +49,27 @@ def _load_product_lexicon(path: Optional[str]) -> Optional[List[str]]:
         raise ValueError("product lexicon must be a JSON array of strings")
 
     return [item.strip() for item in payload if item.strip()]
+
+
+def _resolve_tesseract_cmd(explicit_path: Optional[str]) -> Optional[str]:
+    if explicit_path:
+        return explicit_path
+
+    for env_name in ("PADDLE_OCR_TESSERACT_CMD", "TESSERACT_CMD"):
+        env_value = os.getenv(env_name)
+        if env_value:
+            return env_value
+
+    if sys.platform.startswith("win"):
+        candidates = [
+            Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe"),
+            Path(r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"),
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return str(candidate)
+
+    return None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -180,7 +202,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             min_confidence=min_confidence,
             psm=args.psm,
             oem=args.oem,
-            tesseract_cmd=args.tesseract_cmd,
+            tesseract_cmd=_resolve_tesseract_cmd(args.tesseract_cmd),
             debug_dir=args.debug_dir,
         )
 

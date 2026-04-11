@@ -85,46 +85,68 @@ A smart web app that uses OCR to automatically split receipt costs between roomm
 
 ## PaddleOCR Setup (Receipt Focus)
 
-This project now includes a server-side PaddleOCR pipeline for printed receipts.
+This project includes a server-side OCR pipeline for printed receipts. The repository is tested with a Conda environment named `ocr-receipt`.
 
-### 1. Create a Python environment
+### 1. Create / activate the Conda environment
 
-```bash
-python -m venv .venv
-```
-
-Windows PowerShell:
+Create a new environment (if you don't already have one):
 
 ```bash
-.\.venv\Scripts\Activate.ps1
+conda create -n ocr-receipt python=3.8 -y
+conda activate ocr-receipt
 ```
 
-Linux/macOS:
+Or activate an existing environment:
 
 ```bash
-source .venv/bin/activate
+conda activate ocr-receipt
 ```
 
-### 2. Install OCR dependencies
+### 2. Install OCR Python dependencies
+
+Install the Python packages inside the activated environment:
 
 ```bash
 pip install -r scripts/ocr/requirements.txt
 ```
 
-### 3. Run the app
+### 3. Install the Tesseract binary
+
+Install Tesseract in the Conda env (recommended via conda-forge):
+
+```bash
+conda install -n ocr-receipt -c conda-forge tesseract -y
+```
+
+Or on Windows, install the official Tesseract build and note the executable path (example):
+
+`C:\Program Files\Tesseract-OCR\tesseract.exe`
+
+When running the CLI you can pass `--tesseract-cmd` to point to the tesseract executable if it's not on PATH.
+
+### 4. Run the app / evaluation
+
+Start the frontend as usual:
 
 ```bash
 npm run dev
 ```
 
+Run the OCR CLI inside the Conda env (example evaluation run):
+
+```bash
+conda run -n ocr-receipt --no-capture-output python -m scripts.ocr.cli evaluate --dataset-type manifest --dataset-path "path/to/manifest.json" --tesseract-cmd "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+```
+
 The OCR flow will try PaddleOCR first through `POST /api/ocr/paddle`, and fallback to Tesseract if Paddle is unavailable.
 
-### 4. Optional environment variables
+### 5. Optional environment variables
 
 - `PADDLE_OCR_PYTHON`: custom Python executable path
 - `PADDLE_OCR_MODEL_LANG`: model language passed to the wrapper (`latin` default, mapped to `eng` for Tesseract)
 - `PADDLE_OCR_MIN_TOKEN_SCORE`: minimum token score threshold (`0.35` default)
 - `PADDLE_OCR_LEXICON`: optional path to product lexicon JSON
+- `PADDLE_OCR_TESSERACT_CMD`: optional explicit path to `tesseract.exe` (wrapper also auto-detects common Windows install paths)
 
 ## OCR Wrapper Compatibility Layer
 

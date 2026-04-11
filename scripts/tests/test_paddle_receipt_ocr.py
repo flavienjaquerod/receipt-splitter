@@ -23,6 +23,20 @@ class _FakeResult:
 
 
 class PaddleReceiptOcrWrapperTests(unittest.TestCase):
+    def test_resolve_tesseract_cmd_prefers_explicit(self):
+        self.assertEqual(
+            paddle_receipt_ocr._resolve_tesseract_cmd("C:/custom/tesseract.exe"),
+            "C:/custom/tesseract.exe",
+        )
+
+    def test_resolve_tesseract_cmd_reads_environment(self):
+        with patch("scripts.paddle_receipt_ocr.os.getenv") as getenv:
+            getenv.side_effect = lambda key: "C:/env/tesseract.exe" if key == "PADDLE_OCR_TESSERACT_CMD" else None
+            self.assertEqual(
+                paddle_receipt_ocr._resolve_tesseract_cmd(None),
+                "C:/env/tesseract.exe",
+            )
+
     def test_main_success_outputs_expected_contract(self):
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as handle:
             image_path = Path(handle.name)
