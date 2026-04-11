@@ -108,7 +108,7 @@ source .venv/bin/activate
 ### 2. Install OCR dependencies
 
 ```bash
-pip install -r scripts/requirements-paddle-ocr.txt
+pip install -r scripts/ocr/requirements.txt
 ```
 
 ### 3. Run the app
@@ -122,7 +122,50 @@ The OCR flow will try PaddleOCR first through `POST /api/ocr/paddle`, and fallba
 ### 4. Optional environment variables
 
 - `PADDLE_OCR_PYTHON`: custom Python executable path
-- `PADDLE_OCR_MODEL_LANG`: Paddle model language (`latin` default)
+- `PADDLE_OCR_MODEL_LANG`: model language passed to the wrapper (`latin` default, mapped to `eng` for Tesseract)
+- `PADDLE_OCR_MIN_TOKEN_SCORE`: minimum token score threshold (`0.35` default)
+- `PADDLE_OCR_LEXICON`: optional path to product lexicon JSON
+
+## OCR Wrapper Compatibility Layer
+
+`src/app/api/ocr/paddle/route.js` executes `scripts/paddle_receipt_ocr.py`.
+
+The wrapper keeps the existing route contract stable while delegating OCR to `scripts/ocr/pipeline.py` (`ReceiptOCRPipeline`).
+
+Accepted wrapper args (compatible with the Next API route):
+
+- positional: `image_path`
+- `--lang`
+- `--min-token-score`
+- `--debug-dir`
+- `--product-lexicon`
+- `--tesseract-cmd`
+- `--psm`
+- `--oem`
+
+Successful stdout JSON includes:
+
+- `items`
+- `total`
+- `tokens`
+- `lines`
+- `metadata`
+
+and compatibility fields used by the frontend (`success`, `receiptItems`, `rawText`, `detectedLanguage`, `meta`).
+
+On runtime failures, the wrapper exits non-zero and writes structured JSON to stderr.
+
+Example:
+
+```bash
+python scripts/paddle_receipt_ocr.py path/to/sample.jpg --lang eng --min-token-score 0.35 --debug-dir .ocr-debug/sample
+```
+
+Run unit tests for the wrapper:
+
+```bash
+python -m unittest discover -s scripts/tests -t . -p "test_*.py"
+```
 
 ## Dataset Evaluation (Item + Price Pairs)
 
